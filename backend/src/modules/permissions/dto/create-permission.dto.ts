@@ -6,8 +6,8 @@ export class CreatePermissionDto {
   name: string;
 
   @IsString()
-  @Matches(/^[a-z_]+\.[a-z_]+$/, {
-    message: 'Permission code must be in format: module.action (e.g., user.view)',
+  @Matches(/^[a-z]+\.[a-z]+$|^[a-z]+_[a-z]+$/, {
+    message: 'Permission code must be in format: module.action (e.g., user.view) or module_action (e.g., user_view)',
   })
   code: string;
 

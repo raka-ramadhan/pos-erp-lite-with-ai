@@ -25,7 +25,15 @@ export function RoleDetailModal({ isOpen, onClose, role, onEdit }: RoleDetailMod
 
   // Create permission matrix
   const permissionMatrix = Object.entries(groupedPermissions).map(([group, perms]) => {
-    const actions = perms.map((p) => p.code.split('.')[1]);
+    const actions = perms.map((p) => {
+      // Handle both formats: module.action and module_action
+      if (p.code.includes('.')) {
+        return p.code.split('.')[1];
+      } else if (p.code.includes('_')) {
+        return p.code.split('_')[1];
+      }
+      return p.code; // fallback
+    });
     return {
       module: group,
       actions,

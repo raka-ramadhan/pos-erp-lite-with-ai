@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Checkbox } from '../../components/ui/Checkbox';
-import { Select } from '../../components/ui/Select';
 import { useCreatePermission, useUpdatePermission, useModules } from '../../hooks/usePermissions';
 import type { Permission } from '../../types';
 
@@ -16,7 +15,7 @@ const permissionSchema = z.object({
     .max(100, 'Name must be less than 100 characters'),
   code: z.string()
     .min(1, 'Permission code is required')
-    .regex(/^[a-z_]+\.[a-z_]+$/, 'Code must be in format: module.action (e.g., user.view)'),
+    .regex(/^[a-z]+\.[a-z]+$|^[a-z]+_[a-z]+$/, 'Code must be in format: module.action (e.g., user.view) or module_action (e.g., user_view)'),
   description: z.string().optional(),
   group: z.string()
     .min(1, 'Module is required'),
@@ -38,6 +37,7 @@ export function PermissionModal({ isOpen, onClose, permission }: PermissionModal
 
   const isEditing = !!permission;
   const isSubmitting = createPermission.isPending || updatePermission.isPending;
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Check if permission is used by any roles
   const isUsedByRoles = !!(permission && permission.rolesCount && permission.rolesCount > 0);
@@ -61,6 +61,20 @@ export function PermissionModal({ isOpen, onClose, permission }: PermissionModal
   });
 
   const selectedModule = watch('group');
+
+  // Get existing modules for suggestions
+  const existingModules = modules || [];
+
+  // Filter suggestions based on input
+  const filteredSuggestions = existingModules.filter(
+    (m) => m.toLowerCase().includes(selectedModule?.toLowerCase() || '')
+  );
+
+  // Suggestion click handler
+  const handleModuleSelect = (module: string) => {
+    setValue('group', module);
+    setShowSuggestions(false);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -122,8 +136,6 @@ export function PermissionModal({ isOpen, onClose, permission }: PermissionModal
 
   if (!isOpen) return null;
 
-  const moduleOptions = modules?.map((m) => ({ value: m, label: m })) || [];
-
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
@@ -157,18 +169,37 @@ export function PermissionModal({ isOpen, onClose, permission }: PermissionModal
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Select
+              <div className="relative">
+                <Input
                   label="Module"
-                  options={[
-                    { value: '', label: 'Select module' },
-                    ...moduleOptions,
-                  ]}
-                  value={selectedModule || ''}
-                  onChange={(e) => setValue('group', e.target.value)}
+                  placeholder="Type or select module"
                   error={errors.group?.message}
                   disabled={isUsedByRoles}
+                  {...register('group')}
+                  onFocus={() => setShowSuggestions(true)}
+                  autoComplete="off"
                 />
+                {/* Suggestions Dropdown */}
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {filteredSuggestions.map((module, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => handleModuleSelect(module)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-indigo-50 text-slate-700 first:rounded-t-lg last:rounded-b-lg"
+                      >
+                        {module}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* "New module" hint */}
+                {selectedModule && !existingModules.includes(selectedModule) && (
+                  <p className="text-xs text-indigo-600 mt-1">
+                    New module: "{selectedModule}" will be created
+                  </p>
+                )}
               </div>
               <div className="flex items-end">
                 <Checkbox
@@ -180,7 +211,7 @@ export function PermissionModal({ isOpen, onClose, permission }: PermissionModal
 
             <Input
               label="Permission Code"
-              placeholder="e.g. user.view"
+              placeholder="e.g. user.view or user_view"
               error={errors.code?.message}
               disabled={isUsedByRoles}
               {...register('code')}
@@ -188,7 +219,7 @@ export function PermissionModal({ isOpen, onClose, permission }: PermissionModal
             <p className="text-xs text-slate-500 -mt-2">
               {isUsedByRoles
                 ? '🔒 Code cannot be changed because this permission is used by roles'
-                : 'Format: module.action (lowercase, separated by dot)'}
+                : 'Format: module.action (e.g., user.view) or module_action (e.g., user_view)'}
             </p>
 
             <Input
