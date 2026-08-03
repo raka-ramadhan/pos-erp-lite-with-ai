@@ -1,4 +1,4 @@
-# TRX ERP Lite
+# Starter Kit
 
 > A powerful, production-ready admin panel starter kit with Role-Based Access Control (RBAC), security features, and modern tech stack.
 
@@ -8,7 +8,7 @@
 
 ## 📖 Overview
 
-TRX ERP Lite is an open-source admin panel starter kit designed to jumpstart your next project. It provides a solid foundation with essential modules like authentication, RBAC, user management, role management, and a responsive admin dashboard — all built with modern technologies and best practices.
+Starter Kit is an open-source admin panel starter kit designed to jumpstart your next project. It provides a solid foundation with essential modules like authentication, RBAC, user management, role management, and a responsive admin dashboard — all built with modern technologies and best practices.
 
 **Use it however you want.** Customize it, extend it, or strip it down to fit your needs. This is YOUR project now.
 
@@ -105,7 +105,7 @@ TRX ERP Lite is an open-source admin panel starter kit designed to jumpstart you
 ## 📁 Project Structure
 
 ```
-trx-erp-lite/
+starter-kit-nestjs-reactjs/
 ├── backend/                        # NestJS REST API
 │   ├── src/
 │   │   ├── main.ts                 # Application entry point
@@ -167,7 +167,7 @@ trx-erp-lite/
 │   ├── package.json
 │   └── vite.config.ts
 │
-└── dump-trx-erp_lite-*.sql        # Database schema
+└── dump-starter-kit-*.sql        # Database schema
 ```
 
 ---
@@ -227,7 +227,7 @@ Users ←→ User Roles ←→ Roles ←→ Role Permissions ←→ Permissions
 
 ```bash
 git clone <repository-url>
-cd trx-erp-lite
+cd starter-kit
 ```
 
 ### Step 2: Setup Database
@@ -235,13 +235,13 @@ cd trx-erp-lite
 1. Create a new MySQL database:
 
 ```sql
-CREATE DATABASE erp_lite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE starter-kit CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
 2. Import the database schema from the SQL dump file:
 
 ```bash
-mysql -u root -p erp_lite < dump-trx-erp_lite-*.sql
+mysql -u root -p starter-kit < dump-trx-starter-kit-*.sql
 ```
 
 ### Step 3: Configure Backend
@@ -263,7 +263,7 @@ export default registerAs('database', () => ({
   port: parseInt(process.env.DB_PORT || '3306', 10),
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || 'your_password',
-  database: process.env.DB_DATABASE || 'erp_lite',
+  database: process.env.DB_DATABASE || 'starter-kit',
   // ... rest of config
 }));
 ```
@@ -390,7 +390,7 @@ Open your browser and navigate to:
 | `DB_PORT` | `3306` | MySQL port |
 | `DB_USERNAME` | `root` | MySQL username |
 | `DB_PASSWORD` | - | MySQL password |
-| `DB_DATABASE` | `erp_lite` | Database name |
+| `DB_DATABASE` | `starter-kit` | Database name |
 | `JWT_SECRET` | - | JWT signing secret |
 | `JWT_EXPIRES_IN` | `1d` | Access token expiry |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | Refresh token expiry |
