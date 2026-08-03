@@ -1,0 +1,107 @@
+# =============================================
+# NestJS / Node.js
+# =============================================
+node_modules/
+dist/
+build/
+*.tgz
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+logs/
+
+# =============================================
+# React / Frontend
+# =============================================
+# Dependencies
+client/node_modules/
+frontend/node_modules/
+apps/web/node_modules/
+*.tgz
+
+# Build outputs
+client/build/
+frontend/build/
+apps/web/build/
+.next/
+out/
+dist/
+./claude
+
+# Testing
+coverage/
+.nyc_output/
+
+# =============================================
+# Environment & Secrets
+# =============================================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# =============================================
+# Editor & IDE
+# =============================================
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+.settings/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# =============================================
+# OS Files
+# =============================================
+.DS_Store
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# =============================================
+# Database & Cache
+# =============================================
+*.db
+*.sqlite
+*.sqlite3
+.cache/
+.pnp
+.pnp.js
+
+# =============================================
+# Temporary Files
+# =============================================
+*.bak
+*.backup
+*.tmp
+*.temp
+*.swp
+*.swo
+*.pid
+*.seed
+*.pid.lock
+
+# =============================================
+# Docker
+# =============================================
+.docker/
+docker-compose.override.yml
+
+# =============================================
+# TypeScript
+# =============================================
+*.tsbuildinfo
