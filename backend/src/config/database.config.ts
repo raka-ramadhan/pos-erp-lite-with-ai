@@ -8,6 +8,6 @@ export const databaseConfig = (): TypeOrmModuleOptions => ({
   password: process.env.DB_PASSWORD || 'rhr12345',
   database: process.env.DB_DATABASE || 'erp_lite',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  synchronize: process.env.NODE_ENV !== 'production',
+  synchronize: false,
   logging: process.env.NODE_ENV !== 'production',
 });

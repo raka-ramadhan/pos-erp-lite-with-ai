@@ -81,6 +81,25 @@ const menus: MenuSeed[] = [
       },
     ],
   },
+  {
+    name: 'Master Data',
+    code: 'master_data',
+    description: 'Master Data Management',
+    type: MenuType.GROUP,
+    icon: 'Package',
+    sortOrder: 3,
+    children: [
+      {
+        name: 'Categories',
+        code: 'categories',
+        type: MenuType.MENU,
+        icon: 'Folder',
+        path: '/dashboard/categories',
+        sortOrder: 20,
+        permissionCode: 'view.categories',
+      },
+    ],
+  },
 ];
 
 async function createMenuTree(

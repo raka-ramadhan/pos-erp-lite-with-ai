@@ -26,6 +26,10 @@ const roles: RoleSeed[] = [
       'permission.view', 'permission.create', 'permission.update', 'permission.delete',
       // Menus
       'menu.view', 'menu.create', 'menu.update', 'menu.delete',
+      // Categories
+      'view_categories', 'create_categories', 'update_categories', 'delete_categories',
+      // Files
+      'upload_files', 'delete_files',
     ],
   },
   {

@@ -43,6 +43,12 @@ const permissions: PermissionSeed[] = [
   { name: 'Create Products', code: 'product.create', description: 'Create new product', group: 'Products', sortOrder: 51 },
   { name: 'Update Products', code: 'product.update', description: 'Update existing product', group: 'Products', sortOrder: 52 },
   { name: 'Delete Products', code: 'product.delete', description: 'Delete product', group: 'Products', sortOrder: 53 },
+
+  // Categories
+  { name: 'View Categories', code: 'view.categories', description: 'View category list', group: 'Categories', sortOrder: 60 },
+  { name: 'Create Categories', code: 'create.categories', description: 'Create new category', group: 'Categories', sortOrder: 61 },
+  { name: 'Update Categories', code: 'update.categories', description: 'Update existing category', group: 'Categories', sortOrder: 62 },
+  { name: 'Delete Categories', code: 'delete.categories', description: 'Delete category', group: 'Categories', sortOrder: 63 },
 ];
 
 export async function seedPermissions(dataSource: DataSource): Promise<void> {

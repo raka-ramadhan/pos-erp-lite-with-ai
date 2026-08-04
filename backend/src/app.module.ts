@@ -9,6 +9,11 @@ import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { MenusModule } from './modules/menus/menus.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { FilesModule } from './modules/files/files.module';
+import { ProductsModule } from './modules/products/products.module';
+import { TaxesModule } from './modules/taxes/taxes.module';
+import { ModifierGroupsModule } from './modules/modifier-groups/modifier-groups.module';
 import { HttpExceptionFilter } from './common/filters';
 import { TransformInterceptor } from './common/interceptors';
 
@@ -20,6 +25,11 @@ import { TransformInterceptor } from './common/interceptors';
     RolesModule,
     PermissionsModule,
     MenusModule,
+    CategoriesModule,
+    FilesModule,
+    ProductsModule,
+    TaxesModule,
+    ModifierGroupsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,5 +1,7 @@
 # Frontend Project - React + TypeScript
 
+> **⚠️ IMPORTANT:** Semua development WAJIB mengikuti `docs/RESTAURANT_POS_DATABASE_BLUEPRINT.md`. Jangan melebar dari blueprint.
+
 ## Overview
 
 Project React frontend dengan TypeScript menggunakan Vite, Tailwind CSS v4, dan arsitektur modular enterprise-ready.
@@ -161,14 +163,16 @@ pages/Menus/
 ## RBAC Pattern (Role-Based Access Control)
 
 ### Permission Codes
-Format: `{resource}.{action}`
+Format: `{action}_{resource}` (snake_case, sesuai database)
 
 | Resource | Permissions |
 |----------|-------------|
-| Users | `user.view`, `user.create`, `user.update`, `user.delete` |
-| Roles | `role.view`, `role.create`, `role.update`, `role.delete` |
-| Permissions | `permission.view`, `permission.create`, `permission.update`, `permission.delete` |
-| Menus | `menu.view`, `menu.create`, `menu.update`, `menu.delete` |
+| Users | `view_users`, `create_users`, `update_users`, `delete_users`, `change_status_users` |
+| Roles | `view_roles`, `create_roles`, `update_roles`, `delete_roles` |
+| Permissions | `view_permissions`, `create_permissions`, `update_permissions`, `delete_permissions` |
+| Menus | `view_menus`, `create_menus`, `update_menus`, `delete_menus` |
+| Categories | `view_categories`, `create_categories`, `update_categories`, `delete_categories` |
+| Dashboard | `view_dashboard` |
 
 ### Using Permissions in Components
 
@@ -176,10 +180,31 @@ Format: `{resource}.{action}`
 import { useHasPermission } from '../../hooks/usePermission';
 
 // Check single permission
-const canCreate = useHasPermission('menu.create');
+const canCreate = useHasPermission('create_menus');
 
 // In JSX
 {canCreate && <Button>Create</Button>}
+```
+
+### Permission-Based UI Visibility
+
+Tombol/fitur harus hidden jika user tidak punya permission:
+
+```typescript
+// Di page component
+const canCreate = useHasPermission('create_categories');
+const canUpdate = useHasPermission('update_categories');
+const canDelete = useHasPermission('delete_categories');
+
+// Toolbar - Add button
+{canCreate && <Button onClick={handleCreate}>Add Category</Button>}
+
+// Table actions - Edit/Delete buttons
+{canUpdate && <button onClick={handleEdit}><Pencil /></button>}
+{canDelete && <button onClick={handleDelete}><Trash /></button>}
+
+// Detail Drawer - Edit button
+<CategoryDetailDrawer onEdit={canUpdate ? handleEdit : undefined} />
 ```
 
 ### Custom Hook Pattern (TanStack Query)
@@ -291,19 +316,6 @@ Task yang perlu konfirmasi dulu:
 - Modifikasi build config
 - Hapus file yang sudah ada
 
-## Command Reference
-
-```bash
-# Install dependencies
-npm install <package>
-
-# Build production
-npm run build
-
-# Add component (contoh)
-# Buat file di components/ui/Button.tsx dengan pattern yang sesuai
-```
-
 ## Route Constants
 
 ```typescript
@@ -330,3 +342,96 @@ Before creating or modifying any feature, always:
 8. Do not introduce breaking changes without explicit confirmation.
 9. Ensure the project builds successfully after every change.
 10. Ensure TypeScript and ESLint pass without errors.
+
+## Doc Blueprint Rules
+
+### API Response Type
+
+Setiap module API harus ada type definition:
+
+```typescript
+// api/category.api.ts
+export interface CategoryResponse {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  parentId: string | null;
+  parent?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedCategoriesResponse {
+  data: CategoryResponse[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+```
+
+### API Client Function
+
+```typescript
+// api/category.api.ts
+export const getCategories = async (params?: CategoriesParams): Promise<PaginatedCategoriesResponse> => {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  // ... other params
+
+  const response = await apiClient.get(`/categories?${searchParams}`);
+  return response.data;
+};
+```
+
+### Hook Pattern
+
+```typescript
+// hooks/useCategories.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getCategories, createCategory, updateCategory, deleteCategory } from '../api/category.api';
+
+export function useCategories(params?: CategoriesParams) {
+  return useQuery({
+    queryKey: ['categories', params],
+    queryFn: () => getCategories(params),
+  });
+}
+
+export function useCreateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateCategoryDto) => createCategory(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+}
+
+// ... exports untuk useUpdateCategory, useDeleteCategory
+```
+
+### Page Module Blueprint
+
+```
+pages/{Feature}/
+├── {Feature}Page.tsx        # Main page (table, filters, modals)
+├── {Feature}Modal.tsx       # Create/Edit modal
+└── {Feature}DetailDrawer.tsx # View detail drawer (optional)
+```
+
+### Checklist Doc Module Baru
+
+- [ ] `api/{feature}.api.ts` - Type definitions + API functions
+- [ ] `hooks/use{Feature}.ts` - TanStack Query hooks
+- [ ] `pages/{Feature}/{Feature}Page.tsx` - Main page
+- [ ] `pages/{Feature}/{Feature}Modal.tsx` - Create/Edit modal
+- [ ] `pages/{Feature}/{Feature}DetailDrawer.tsx` - Detail drawer (optional)
+- [ ] RBAC permission checks di page component

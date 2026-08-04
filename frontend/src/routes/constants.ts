@@ -10,6 +10,7 @@ export const ROUTES = {
   // Dashboard routes
   DASHBOARD: '/dashboard',
   DASHBOARD_HOME: '/dashboard',
+  CATEGORIES: '/dashboard/categories',
 
   HOME: '/',
   DEFAULT: '/login',

@@ -30,7 +30,7 @@ export function RoleDetailModal({ isOpen, onClose, role, onEdit }: RoleDetailMod
       if (p.code.includes('.')) {
         return p.code.split('.')[1];
       } else if (p.code.includes('_')) {
-        return p.code.split('_')[1];
+        return p.code.split('_')[0]; // Fixed: [0] to get action (view, create, etc), not resource
       }
       return p.code; // fallback
     });

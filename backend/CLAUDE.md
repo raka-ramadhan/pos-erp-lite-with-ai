@@ -1,5 +1,7 @@
 # Backend Project - NestJS
 
+> **⚠️ IMPORTANT:** Semua development WAJIB mengikuti `docs/RESTAURANT_POS_DATABASE_BLUEPRINT.md`. Jangan melebar dari blueprint.
+
 ## Overview
 
 NestJS backend API dengan TypeScript, menggunakan pattern modular yang clean, maintainable, dan secure.
@@ -424,18 +426,6 @@ throw new HttpException(
 | PUT | `/resources/:id` | Full update |
 | DELETE | `/resources/:id` | Delete resource |
 
-## Available Scripts
-
-```bash
-npm run start        # Start production server
-npm run start:dev    # Start with hot reload
-npm run start:debug # Start with debug
-npm run build       # Build for production
-npm run test         # Run unit tests
-npm run test:watch  # Watch mode for tests
-npm run lint        # Run ESLint
-```
-
 ## Testing Credentials
 
 ### Default Admin User
@@ -468,17 +458,21 @@ curl --location 'http://localhost:3000/api/roles' \
 
 ### Permission Codes
 
-Permissions di database menggunakan format `{resource}.{action}`:
+Permissions di database menggunakan format `{action}_{resource}` (snake_case):
 
 | Resource | Permissions |
 |----------|-------------|
-| Dashboard | `dashboard.view` |
-| Users | `user.view`, `user.create`, `user.update`, `user.delete`, `user.change_status` |
-| Roles | `role.view`, `role.create`, `role.update`, `role.delete` |
-| Permissions | `permission.view`, `permission.create`, `permission.update`, `permission.delete` |
-| Menus | `menu.view`, `menu.create`, `menu.update`, `menu.delete` |
+| Dashboard | `view_dashboard` |
+| Users | `view_users`, `create_users`, `update_users`, `delete_users`, `change_status_users` |
+| Roles | `view_roles`, `create_roles`, `update_roles`, `delete_roles` |
+| Permissions | `view_permissions`, `create_permissions`, `update_permissions`, `delete_permissions` |
+| Menus | `view_menus`, `create_menus`, `update_menus`, `delete_menus` |
+| Categories | `view_categories`, `create_categories`, `update_categories`, `delete_categories` |
 
-**Catatan:** Permission code tidak bisa diedit jika sudah digunakan oleh role (RBAC constraint).
+**Catatan:** 
+- Permission code tidak bisa diedit jika sudah digunakan oleh role (RBAC constraint).
+- Gunakan `@RequirePermission('create_categories')` di controller sesuai format ini.
+- Frontend harus menggunakan permission code yang SAMA dengan backend.
 
 ## Development Rules
 

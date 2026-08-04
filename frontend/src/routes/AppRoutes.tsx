@@ -6,6 +6,8 @@ import { UsersPage } from '../pages/Users';
 import { RolesPage } from '../pages/Roles';
 import { PermissionsPage } from '../pages/Permissions';
 import { MenusPage } from '../pages/Menus';
+import { CategoriesPage } from '../pages/Categories';
+import { ProductsPage } from '../pages/Products/index';
 
 function RegisterPage() {
   return (
@@ -56,6 +58,8 @@ export function AppRoutes() {
         <Route path="roles" element={<RolesPage />} />
         <Route path="permissions" element={<PermissionsPage />} />
         <Route path="menus" element={<MenusPage />} />
+        <Route path="categories" element={<CategoriesPage />} />
+        <Route path="products" element={<ProductsPage />} />
       </Route>
 
       {/* Redirects */}
