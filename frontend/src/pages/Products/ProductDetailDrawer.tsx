@@ -115,26 +115,19 @@ export function ProductDetailDrawer({ isOpen, onClose, product, onEdit }: Produc
             </div>
           </div>
 
-          {/* Taxes */}
-          {product.taxes && product.taxes.length > 0 && (
+          {/* Tax */}
+          {product.tax && (
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2">
                 <DollarSign className="w-4 h-4" />
-                Applied Taxes
+                Applied Tax
               </h4>
-              <div className="flex flex-wrap gap-2">
-                {product.taxes.map((tax) => (
-                  <div
-                    key={tax.id}
-                    className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg"
-                  >
-                    <Tag className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm font-medium text-slate-700">{tax.name}</span>
-                    <span className="text-xs text-slate-500">
-                      {tax.taxType === 'percentage' ? `${tax.rate}%` : formatPrice(tax.rate)}
-                    </span>
-                  </div>
-                ))}
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg">
+                <Tag className="w-4 h-4 text-slate-400" />
+                <span className="text-sm font-medium text-slate-700">{product.tax.name}</span>
+                <span className="text-xs text-slate-500">
+                  {product.tax.taxType === 'percentage' ? `${product.tax.rate}%` : formatPrice(product.tax.rate)}
+                </span>
               </div>
             </div>
           )}

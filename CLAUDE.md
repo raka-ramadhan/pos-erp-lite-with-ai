@@ -1,7 +1,7 @@
 # CLAUDE.md - POS Portfolio Project
 
 ## Project Overview
-This is a Point of Sale (POS) portfolio project with frontend (Vue.js) and backend (Node.js) architecture.
+This is a Point of Sale (POS) portfolio
 
 ## MCP Server
 This project uses `my-mcp-server-erp-lite-local` MCP server for database operations:
@@ -47,19 +47,6 @@ This project uses `my-mcp-server-erp-lite-local` MCP server for database operati
    - Sebelum fix bug → Check struktur dan data di database
    - Sebelum add feature → Pastikan tabel dan relasi sudah dipahami
 
-### Frontend (Vue.js)
-- Located in `/frontend` directory
-- Components: `/frontend/src/components`
-- Views/Pages: `/frontend/src/views`
-- Store/State: `/frontend/src/stores`
-- API calls: `/frontend/src/services` or `/frontend/src/api`
-
-### Backend (Node.js)
-- Located in `/backend` directory
-- Routes: `/backend/routes` or `/backend/src/routes`
-- Controllers: `/backend/controllers` or `/backend/src/controllers`
-- Models: `/backend/models` or `/backend/src/models`
-- Database connection: Check environment config
 
 ## Development Workflow
 1. Check database structure first (WAJIB)

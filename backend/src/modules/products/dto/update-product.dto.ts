@@ -85,9 +85,8 @@ export class UpdateProductDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsArray()
-  @IsUUID('4', { each: true })
-  taxIds?: string[];
+  @IsUUID('4')
+  taxId?: string | null;
 
   @IsOptional()
   @IsArray()

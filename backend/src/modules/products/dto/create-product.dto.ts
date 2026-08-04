@@ -79,9 +79,8 @@ export class CreateProductDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsArray()
-  @IsUUID('4', { each: true })
-  taxIds?: string[];
+  @IsUUID('4')
+  taxId?: string;
 
   @IsOptional()
   @IsArray()

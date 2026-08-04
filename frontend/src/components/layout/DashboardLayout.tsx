@@ -9,11 +9,20 @@ import type { RootState } from '../../store';
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/dashboard/users': 'Users',
-  '/dashboard/products': 'Products',
+  '/dashboard/roles': 'Roles & Permissions',
+  '/dashboard/permissions': 'Permissions',
+  '/dashboard/menus': 'Menus',
   '/dashboard/categories': 'Categories',
+  '/dashboard/products': 'Products',
+  '/dashboard/modifier-groups': 'Modifier Groups',
+  '/dashboard/modifier': 'Modifiers',
+  '/dashboard/taxes': 'Taxes',
+  '/dashboard/payment-methods': 'Payment Methods',
+  '/dashboard/discounts': 'Discounts',
   '/dashboard/orders': 'Orders',
   '/dashboard/reports': 'Reports',
   '/dashboard/settings': 'Settings',
+  '/dashboard/menu-permissions': 'Menu Permissions',
 };
 
 export function DashboardLayout() {
@@ -24,6 +33,12 @@ export function DashboardLayout() {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   const pageTitle = pageTitles[location.pathname] || 'Dashboard';
+
+  // Update document title when route changes
+  useEffect(() => {
+    const title = pageTitles[location.pathname] || 'Dashboard';
+    document.title = `${title} | Nexus`;
+  }, [location.pathname]);
 
   // Redirect to login if not authenticated
   useEffect(() => {

@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
 import { BrandSection } from '../../components/layout';
 import { LoginCard } from './LoginCard';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 export function LoginPage() {
+  useDocumentTitle('Sign In');
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       {/* Left Side - Brand Section (Desktop) */}

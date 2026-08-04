@@ -35,6 +35,14 @@ export interface ModifierGroupSummary {
   modifierCount: number;
 }
 
+export interface TaxSummary {
+  id: string;
+  code: string;
+  name: string;
+  taxType: string;
+  rate: number;
+}
+
 export interface ProductResponse {
   id: string;
   outletId: string | null;
@@ -58,7 +66,8 @@ export interface ProductResponse {
   preparationTime: number | null;
   sortOrder: number;
   isActive: boolean;
-  taxes: any[];
+  taxId: string | null;
+  tax: TaxSummary | null;
   modifierGroups: ModifierGroupSummary[];
   modifierGroupCount: number;
   createdAt: Date;
@@ -126,14 +135,25 @@ export class ProductsService {
     };
   }
 
-  private async getProductTaxes(productId: string): Promise<any[]> {
+  private async getProductTax(productId: string): Promise<TaxSummary | null> {
     const result = await this.mediaRepository.manager.query(
-      `SELECT t.* FROM taxes t
+      `SELECT t.id, t.code, t.name, t.tax_type, t.rate FROM taxes t
        INNER JOIN product_taxes pt ON t.id = pt.tax_id
-       WHERE pt.product_id = ?`,
+       WHERE pt.product_id = ? AND t.is_active = 1
+       LIMIT 1`,
       [productId]
     );
-    return result || [];
+    if (result && result.length > 0) {
+      const t = result[0];
+      return {
+        id: t.id,
+        code: t.code,
+        name: t.name,
+        taxType: t.tax_type,
+        rate: Number(t.rate),
+      };
+    }
+    return null;
   }
 
   private async toModifierGroupResponse(mg: ModifierGroup): Promise<ModifierGroupSummary> {
@@ -151,7 +171,7 @@ export class ProductsService {
 
   private async toProductResponse(product: Product, includeRelations = false): Promise<ProductResponse> {
     const { imageUrl, mediaId } = await this.getImageUrl(product.id);
-    const taxes = await this.getProductTaxes(product.id);
+    const tax = await this.getProductTax(product.id);
 
     // Use eager-loaded modifier groups if available
     let modifierGroups: ModifierGroupSummary[] = [];
@@ -203,7 +223,8 @@ export class ProductsService {
       preparationTime: product.preparationTime,
       sortOrder: product.sortOrder,
       isActive: product.isActive,
-      taxes,
+      taxId: tax?.id || null,
+      tax,
       modifierGroups,
       modifierGroupCount: modifierGroups.length,
       createdAt: product.createdAt,
@@ -270,14 +291,12 @@ export class ProductsService {
 
       const savedProduct = await queryRunner.manager.save(product);
 
-      // Link taxes
-      if (createProductDto.taxIds?.length) {
-        for (const taxId of createProductDto.taxIds) {
-          await queryRunner.manager.query(
-            `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
-            [savedProduct.id, taxId]
-          );
-        }
+      // Link tax
+      if (createProductDto.taxId) {
+        await queryRunner.manager.query(
+          `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
+          [savedProduct.id, createProductDto.taxId]
+        );
       }
 
       // Link modifier groups with sort order
@@ -358,14 +377,12 @@ export class ProductsService {
       // Update media entityId now that we have the product ID
       await this.filesService.updateEntityId(uploadResult.id, savedProduct.id);
 
-      // Link taxes
-      if (createProductDto.taxIds?.length) {
-        for (const taxId of createProductDto.taxIds) {
-          await queryRunner.manager.query(
-            `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
-            [savedProduct.id, taxId]
-          );
-        }
+      // Link tax
+      if (createProductDto.taxId) {
+        await queryRunner.manager.query(
+          `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
+          [savedProduct.id, createProductDto.taxId]
+        );
       }
 
       // Link modifier groups with sort order
@@ -584,15 +601,15 @@ export class ProductsService {
       await queryRunner.manager.save(product);
 
       // Handle tax changes
-      if (updateProductDto.taxIds !== undefined) {
+      if (updateProductDto.taxId !== undefined) {
         await queryRunner.manager.query(
           `DELETE FROM product_taxes WHERE product_id = ?`,
           [id]
         );
-        for (const taxId of updateProductDto.taxIds) {
+        if (updateProductDto.taxId) {
           await queryRunner.manager.query(
             `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
-            [id, taxId]
+            [id, updateProductDto.taxId]
           );
         }
       }

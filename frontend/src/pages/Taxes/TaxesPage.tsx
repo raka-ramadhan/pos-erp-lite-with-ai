@@ -13,9 +13,12 @@ import {
   useDeleteTax,
 } from '../../hooks/useTaxes';
 import { useHasPermission } from '../../hooks/usePermission';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import type { Tax } from '../../api/tax.api';
 
 export function TaxesPage() {
+  useDocumentTitle('Taxes');
+
   // State
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');

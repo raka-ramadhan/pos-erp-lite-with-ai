@@ -1,6 +1,7 @@
 import { Users, Package, ShoppingCart, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../components/ui';
 import { cn } from '../../utils/cn';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 interface StatCardProps {
   title: string;
@@ -60,6 +61,8 @@ const recentActivities: ActivityItem[] = [
 ];
 
 export function DashboardHome() {
+  useDocumentTitle('Dashboard');
+
   return (
     <div className="space-y-6">
       {/* Page Header */}

@@ -244,6 +244,9 @@ export function ProductsPage() {
                 <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider w-40">
                   Modifiers
                 </th>
+                <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider w-32">
+                  Tax
+                </th>
                 <th className="text-right py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider w-32">
                   Actions
                 </th>
@@ -252,7 +255,7 @@ export function ProductsPage() {
             <tbody className="divide-y divide-slate-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12">
+                  <td colSpan={9} className="text-center py-12">
                     <div className="flex items-center justify-center gap-2 text-slate-500">
                       <Loader2 className="w-5 h-5 animate-spin" />
                       Loading products...
@@ -261,7 +264,7 @@ export function ProductsPage() {
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12">
+                  <td colSpan={9} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
                         <ImageIcon className="w-6 h-6 text-slate-400" />
@@ -334,6 +337,17 @@ export function ProductsPage() {
                       {product.modifierGroupCount > 0 ? (
                         <Badge variant="info" size="sm">
                           {product.modifierGroupCount} Modifier{product.modifierGroupCount > 1 ? 's' : ''}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-slate-400">None</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {product.tax ? (
+                        <Badge variant="secondary" size="sm">
+                          {product.tax.taxType === 'percentage'
+                            ? `${product.tax.rate}%`
+                            : `Rp ${product.tax.rate.toLocaleString()}`}
                         </Badge>
                       ) : (
                         <span className="text-xs text-slate-400">None</span>

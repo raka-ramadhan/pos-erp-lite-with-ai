@@ -1,14 +1,12 @@
 import apiClient from './client';
 import type { ApiResponse } from '../types';
 
-export interface Tax {
+export interface TaxSummary {
   id: string;
   code: string;
   name: string;
   taxType: string;
   rate: number;
-  isDefault: boolean;
-  isActive: boolean;
 }
 
 export interface ModifierGroup {
@@ -47,7 +45,8 @@ export interface ProductResponse {
   preparationTime: number | null;
   sortOrder: number;
   isActive: boolean;
-  taxes: Tax[];
+  taxId: string | null;
+  tax: TaxSummary | null;
   modifierGroups: ModifierGroup[];
   modifierGroupCount: number;
   createdAt: string;
@@ -91,7 +90,7 @@ export interface CreateProductDto {
   preparationTime?: number;
   sortOrder?: number;
   isActive?: boolean;
-  taxIds?: string[];
+  taxId?: string | null;
   modifierGroupIds?: string[];
 }
 
@@ -111,7 +110,7 @@ export interface UpdateProductDto {
   preparationTime?: number;
   sortOrder?: number;
   isActive?: boolean;
-  taxIds?: string[];
+  taxId?: string | null;
   modifierGroupIds?: string[];
 }
 
@@ -150,7 +149,7 @@ export default {
     formData.append('isFeatured', String(data.isFeatured ?? false));
     formData.append('sortOrder', String(data.sortOrder ?? 0));
     formData.append('isActive', String(data.isActive ?? true));
-    formData.append('taxIds', JSON.stringify(data.taxIds || []));
+    formData.append('taxId', data.taxId || '');
     formData.append('modifierGroupIds', JSON.stringify(data.modifierGroupIds || []));
 
     if (data.sku) formData.append('sku', data.sku);

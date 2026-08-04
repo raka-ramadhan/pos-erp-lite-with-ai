@@ -65,7 +65,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedMediaId, setUploadedMediaId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [selectedTaxIds, setSelectedTaxIds] = useState<string[]>([]);
+  const [selectedTaxId, setSelectedTaxId] = useState<string | null>(null);
   const [selectedModifierGroupIds, setSelectedModifierGroupIds] = useState<string[]>([]);
   const [taxes, setTaxes] = useState<Tax[]>([]);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
@@ -123,7 +123,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
           isActive: product.isActive,
         });
         setUploadedMediaId(product.mediaId);
-        setSelectedTaxIds(product.taxes?.map((t) => t.id) || []);
+        setSelectedTaxId(product.taxId || null);
         setSelectedModifierGroupIds(product.modifierGroups?.map((mg) => mg.id) || []);
       } else {
         setFormData({
@@ -142,7 +142,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
           isActive: true,
         });
         setUploadedMediaId(null);
-        setSelectedTaxIds([]);
+        setSelectedTaxId(null);
         setSelectedModifierGroupIds([]);
       }
       setSelectedFile(null);
@@ -165,11 +165,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
   };
 
   const handleTaxChange = (taxId: string) => {
-    setSelectedTaxIds((prev) =>
-      prev.includes(taxId)
-        ? prev.filter((id) => id !== taxId)
-        : [...prev, taxId]
-    );
+    setSelectedTaxId((prev) => (prev === taxId ? null : taxId));
   };
 
   const handleModifierGroupChange = (mgId: string) => {
@@ -208,7 +204,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       isFeatured: formData.isFeatured,
       sortOrder: formData.sortOrder ?? 0,
       isActive: formData.isActive,
-      taxIds: selectedTaxIds,
+      taxId: selectedTaxId || undefined,
       modifierGroupIds: selectedModifierGroupIds,
       ...(formData.sku && { sku: formData.sku }),
       ...(formData.slug && { slug: formData.slug }),
@@ -414,13 +410,18 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                   {taxes.map((tax) => (
                     <label
                       key={tax.id}
-                      className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100"
+                      className={`flex items-center gap-2 p-3 rounded-lg cursor-pointer border transition-colors ${
+                        selectedTaxId === tax.id
+                          ? 'bg-indigo-50 border-indigo-300'
+                          : 'bg-slate-50 border-transparent hover:bg-slate-100'
+                      }`}
                     >
                       <input
-                        type="checkbox"
-                        checked={selectedTaxIds.includes(tax.id)}
+                        type="radio"
+                        name="tax-selection"
+                        checked={selectedTaxId === tax.id}
                         onChange={() => handleTaxChange(tax.id)}
-                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                        className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
                       />
                       <div className="flex-1">
                         <p className="text-sm font-medium text-slate-700">{tax.name}</p>

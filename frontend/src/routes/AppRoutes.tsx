@@ -11,6 +11,8 @@ import { ProductsPage } from '../pages/Products/index';
 import { ModifierGroupsPage } from '../pages/ModifierGroups';
 import { ModifiersPage } from '../pages/Modifiers';
 import { TaxesPage } from '../pages/Taxes';
+import { PaymentMethodsPage } from '../pages/PaymentMethods';
+import { DiscountsPage } from '../pages/Discounts';
 import { MenuPermissionsPage } from '../pages/MenuPermissions';
 
 function RegisterPage() {
@@ -67,6 +69,8 @@ export function AppRoutes() {
         <Route path="modifier-groups" element={<ModifierGroupsPage />} />
         <Route path="modifier" element={<ModifiersPage />} />
         <Route path="taxes" element={<TaxesPage />} />
+        <Route path="payment-methods" element={<PaymentMethodsPage />} />
+        <Route path="discounts" element={<DiscountsPage />} />
         <Route path="menu-permissions" element={<MenuPermissionsPage />} />
       </Route>
 
