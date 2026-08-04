@@ -63,6 +63,9 @@ export class ModifierGroup {
   @OneToMany(() => Modifier, (modifier) => modifier.modifierGroup)
   modifiers!: Modifier[];
 
+  // Inverse side of ManyToMany with Product (JoinTable defined on Product side)
+  products!: any[];
+
   @BeforeInsert()
   generateSlug() {
     if (this.name && !this.slug) {

@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, Like, FindOptionsOrder, FindOptionsRelations } from 'typeorm';
+import { Repository, FindOptionsWhere, Like, FindOptionsOrder, FindOptionsRelations, DataSource } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -22,6 +22,17 @@ export interface PaginatedResult<T> {
     limit: number;
     totalPages: number;
   };
+}
+
+export interface ModifierGroupSummary {
+  id: string;
+  name: string;
+  slug: string;
+  selectionType: string;
+  isRequired: boolean;
+  minSelections: number | null;
+  maxSelections: number | null;
+  modifierCount: number;
 }
 
 export interface ProductResponse {
@@ -48,7 +59,8 @@ export interface ProductResponse {
   sortOrder: number;
   isActive: boolean;
   taxes: any[];
-  modifierGroups: any[];
+  modifierGroups: ModifierGroupSummary[];
+  modifierGroupCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +79,7 @@ export class ProductsService {
     @InjectRepository(Media)
     private readonly mediaRepository: Repository<Media>,
     private readonly filesService: FilesService,
+    private readonly dataSource: DataSource,
   ) {}
 
   private generateSlug(name: string): string {
@@ -77,6 +90,7 @@ export class ProductsService {
   }
 
   private async getImageUrl(productId: string): Promise<{ imageUrl: string | null; mediaId: string | null }> {
+    // First try to find media with exact entityId match
     const media = await this.mediaRepository.findOne({
       where: [
         { entityType: 'products', entityId: productId },
@@ -84,9 +98,31 @@ export class ProductsService {
       ],
       order: { createdAt: 'DESC' },
     });
+
+    if (media) {
+      return {
+        imageUrl: media.url || null,
+        mediaId: media.id || null,
+      };
+    }
+
+    // Fallback: If product has mediaId stored, try to find that media record
+    const product = await this.productRepository.findOne({ where: { id: productId } });
+    if (product?.mediaId) {
+      const mediaById = await this.mediaRepository.findOne({
+        where: { id: product.mediaId },
+      });
+      if (mediaById) {
+        return {
+          imageUrl: mediaById.url || null,
+          mediaId: mediaById.id || null,
+        };
+      }
+    }
+
     return {
-      imageUrl: media?.url || null,
-      mediaId: media?.id || null,
+      imageUrl: null,
+      mediaId: null,
     };
   }
 
@@ -100,20 +136,52 @@ export class ProductsService {
     return result || [];
   }
 
-  private async getProductModifierGroups(productId: string): Promise<any[]> {
-    const result = await this.mediaRepository.manager.query(
-      `SELECT mg.* FROM modifier_groups mg
-       INNER JOIN product_modifier_groups pmg ON mg.id = pmg.modifier_group_id
-       WHERE pmg.product_id = ?`,
-      [productId]
-    );
-    return result || [];
+  private async toModifierGroupResponse(mg: ModifierGroup): Promise<ModifierGroupSummary> {
+    return {
+      id: mg.id,
+      name: mg.name,
+      slug: mg.slug,
+      selectionType: mg.selectionType,
+      isRequired: mg.isRequired,
+      minSelections: mg.minSelections,
+      maxSelections: mg.maxSelections,
+      modifierCount: mg.modifiers?.length || 0,
+    };
   }
 
-  private async toProductResponse(product: Product): Promise<ProductResponse> {
+  private async toProductResponse(product: Product, includeRelations = false): Promise<ProductResponse> {
     const { imageUrl, mediaId } = await this.getImageUrl(product.id);
     const taxes = await this.getProductTaxes(product.id);
-    const modifierGroups = await this.getProductModifierGroups(product.id);
+
+    // Use eager-loaded modifier groups if available
+    let modifierGroups: ModifierGroupSummary[] = [];
+    if (includeRelations && product.modifierGroups) {
+      modifierGroups = await Promise.all(
+        product.modifierGroups
+          .filter((mg) => mg.isActive)
+          .sort((a, b) => (a as any).sortOrder - (b as any).sortOrder)
+          .map((mg) => this.toModifierGroupResponse(mg))
+      );
+    } else {
+      // Fallback to query if not loaded
+      const rawMgs = await this.mediaRepository.manager.query(
+        `SELECT mg.*, pmg.sort_order FROM modifier_groups mg
+         INNER JOIN product_modifier_groups pmg ON mg.id = pmg.modifier_group_id
+         WHERE pmg.product_id = ? AND pmg.is_active = 1
+         ORDER BY pmg.sort_order ASC`,
+        [product.id]
+      );
+      modifierGroups = rawMgs.map((mg: any) => ({
+        id: mg.id,
+        name: mg.name,
+        slug: mg.slug,
+        selectionType: mg.selection_type,
+        isRequired: !!mg.is_required,
+        minSelections: mg.min_selections,
+        maxSelections: mg.max_selections,
+        modifierCount: 0,
+      }));
+    }
 
     return {
       id: product.id,
@@ -129,7 +197,7 @@ export class ProductsService {
       price: Number(product.price),
       costPrice: product.costPrice ? Number(product.costPrice) : null,
       unitType: product.unitType,
-      hasVariants: product.hasVariants,
+      hasVariants: product.hasVariants || modifierGroups.length > 0,
       isAvailable: product.isAvailable,
       isFeatured: product.isFeatured,
       preparationTime: product.preparationTime,
@@ -137,6 +205,7 @@ export class ProductsService {
       isActive: product.isActive,
       taxes,
       modifierGroups,
+      modifierGroupCount: modifierGroups.length,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     };
@@ -165,52 +234,158 @@ export class ProductsService {
       }
     }
 
-    const product = this.productRepository.create({
-      name: createProductDto.name,
-      slug,
-      sku: createProductDto.sku || null,
-      description: createProductDto.description || null,
-      categoryId: createProductDto.categoryId,
-      mediaId: createProductDto.mediaId || null,
-      price: createProductDto.price ?? 0,
-      costPrice: createProductDto.costPrice || null,
-      unitType: createProductDto.unitType || 'unit',
-      hasVariants: (createProductDto.modifierGroupIds?.length ?? 0) > 0,
-      isAvailable: createProductDto.isAvailable ?? true,
-      isFeatured: createProductDto.isFeatured ?? false,
-      preparationTime: createProductDto.preparationTime || null,
-      sortOrder: createProductDto.sortOrder ?? 0,
-      isActive: createProductDto.isActive ?? true,
-    });
-
-    const savedProduct = await this.productRepository.save(product);
-
-    // Link taxes
-    if (createProductDto.taxIds?.length) {
-      for (const taxId of createProductDto.taxIds) {
-        await this.mediaRepository.manager.query(
-          `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
-          [savedProduct.id, taxId]
-        );
-      }
-    }
-
-    // Link modifier groups
+    // Validate modifier groups exist and are active
     if (createProductDto.modifierGroupIds?.length) {
-      for (const modifierGroupId of createProductDto.modifierGroupIds) {
-        await this.mediaRepository.manager.query(
-          `INSERT INTO product_modifier_groups (id, product_id, modifier_group_id, sort_order, is_active, created_at) VALUES (UUID(), ?, ?, 0, 1, NOW())`,
-          [savedProduct.id, modifierGroupId]
-        );
+      const validGroups = await this.modifierGroupRepository.find({
+        where: createProductDto.modifierGroupIds.map((id) => ({ id, isActive: true })),
+      });
+      if (validGroups.length !== createProductDto.modifierGroupIds.length) {
+        throw new NotFoundException('One or more modifier groups are invalid or inactive');
       }
     }
 
-    // Update media entityId if mediaId provided
-    if (createProductDto.mediaId) {
-      await this.filesService.updateEntityId(createProductDto.mediaId, savedProduct.id);
+    // Use transaction for data consistency
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const product = this.productRepository.create({
+        name: createProductDto.name,
+        slug,
+        sku: createProductDto.sku || null,
+        description: createProductDto.description || null,
+        categoryId: createProductDto.categoryId,
+        mediaId: createProductDto.mediaId || null,
+        price: createProductDto.price ?? 0,
+        costPrice: createProductDto.costPrice || null,
+        unitType: createProductDto.unitType || 'unit',
+        hasVariants: (createProductDto.modifierGroupIds?.length ?? 0) > 0,
+        isAvailable: createProductDto.isAvailable ?? true,
+        isFeatured: createProductDto.isFeatured ?? false,
+        preparationTime: createProductDto.preparationTime || null,
+        sortOrder: createProductDto.sortOrder ?? 0,
+        isActive: createProductDto.isActive ?? true,
+      });
+
+      const savedProduct = await queryRunner.manager.save(product);
+
+      // Link taxes
+      if (createProductDto.taxIds?.length) {
+        for (const taxId of createProductDto.taxIds) {
+          await queryRunner.manager.query(
+            `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
+            [savedProduct.id, taxId]
+          );
+        }
+      }
+
+      // Link modifier groups with sort order
+      if (createProductDto.modifierGroupIds?.length) {
+        for (let i = 0; i < createProductDto.modifierGroupIds.length; i++) {
+          await queryRunner.manager.query(
+            `INSERT INTO product_modifier_groups (id, product_id, modifier_group_id, sort_order, is_active, created_at) VALUES (UUID(), ?, ?, ?, 1, NOW())`,
+            [savedProduct.id, createProductDto.modifierGroupIds[i], i]
+          );
+        }
+      }
+
+      await queryRunner.commitTransaction();
+
+      // Update media entityId if mediaId provided
+      if (createProductDto.mediaId) {
+        await this.filesService.updateEntityId(createProductDto.mediaId, savedProduct.id);
+      }
+
+      return this.findOne(savedProduct.id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async createWithImage(
+    createProductDto: CreateProductDto,
+    file: any,
+    userId?: string,
+  ): Promise<ProductResponse> {
+    // Upload file first to get the media ID
+    const uploadResult = await this.filesService.uploadFile(
+      file,
+      this.entityType,
+      undefined, // No entityId yet - we'll update it after product creation
+      userId,
+    );
+
+    // Validate modifier groups exist and are active
+    if (createProductDto.modifierGroupIds?.length) {
+      const validGroups = await this.modifierGroupRepository.find({
+        where: createProductDto.modifierGroupIds.map((id) => ({ id, isActive: true })),
+      });
+      if (validGroups.length !== createProductDto.modifierGroupIds.length) {
+        throw new NotFoundException('One or more modifier groups are invalid or inactive');
+      }
     }
 
-    return this.findOne(savedProduct.id);
+    // Use transaction for data consistency
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const product = this.productRepository.create({
+        name: createProductDto.name,
+        slug: createProductDto.slug || this.generateSlug(createProductDto.name),
+        sku: createProductDto.sku || null,
+        description: createProductDto.description || null,
+        categoryId: createProductDto.categoryId,
+        mediaId: uploadResult.id,
+        price: createProductDto.price ?? 0,
+        costPrice: createProductDto.costPrice || null,
+        unitType: createProductDto.unitType || 'unit',
+        hasVariants: (createProductDto.modifierGroupIds?.length ?? 0) > 0,
+        isAvailable: createProductDto.isAvailable ?? true,
+        isFeatured: createProductDto.isFeatured ?? false,
+        preparationTime: createProductDto.preparationTime || null,
+        sortOrder: createProductDto.sortOrder ?? 0,
+        isActive: createProductDto.isActive ?? true,
+      });
+
+      const savedProduct = await queryRunner.manager.save(product);
+
+      // Update media entityId now that we have the product ID
+      await this.filesService.updateEntityId(uploadResult.id, savedProduct.id);
+
+      // Link taxes
+      if (createProductDto.taxIds?.length) {
+        for (const taxId of createProductDto.taxIds) {
+          await queryRunner.manager.query(
+            `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
+            [savedProduct.id, taxId]
+          );
+        }
+      }
+
+      // Link modifier groups with sort order
+      if (createProductDto.modifierGroupIds?.length) {
+        for (let i = 0; i < createProductDto.modifierGroupIds.length; i++) {
+          await queryRunner.manager.query(
+            `INSERT INTO product_modifier_groups (id, product_id, modifier_group_id, sort_order, is_active, created_at) VALUES (UUID(), ?, ?, ?, 1, NOW())`,
+            [savedProduct.id, createProductDto.modifierGroupIds[i], i]
+          );
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return this.findOne(savedProduct.id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async findAll(query: QueryProductDto): Promise<PaginatedResult<ProductResponse>> {
@@ -255,11 +430,21 @@ export class ProductsService {
       order: sortOrder,
       skip,
       take: limit,
-      relations: { category: true } as FindOptionsRelations<Product>,
+      relations: {
+        category: true,
+        modifierGroups: true,
+      } as FindOptionsRelations<Product>,
+    });
+
+    // Transform modifierGroups to only include active ones
+    products.forEach((p) => {
+      if (p.modifierGroups) {
+        (p as any).modifierGroups = p.modifierGroups.filter((mg) => mg.isActive);
+      }
     });
 
     const data = await Promise.all(
-      products.map((product) => this.toProductResponse(product))
+      products.map((product) => this.toProductResponse(product, true))
     );
 
     return {
@@ -276,7 +461,10 @@ export class ProductsService {
   async findOne(id: string): Promise<ProductResponse> {
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: { category: true } as FindOptionsRelations<Product>,
+      relations: {
+        category: true,
+        modifierGroups: true,
+      } as FindOptionsRelations<Product>,
       withDeleted: true,
     });
 
@@ -284,18 +472,33 @@ export class ProductsService {
       throw new NotFoundException(`Product with ID ${id} not found`);
     }
 
-    return this.toProductResponse(product);
+    // Filter only active modifier groups
+    if (product.modifierGroups) {
+      (product as any).modifierGroups = product.modifierGroups.filter((mg) => mg.isActive);
+    }
+
+    return this.toProductResponse(product, true);
   }
 
   async findAllActive(): Promise<ProductResponse[]> {
     const products = await this.productRepository.find({
       where: { isActive: true, isAvailable: true },
       order: { sortOrder: 'ASC', name: 'ASC' },
-      relations: { category: true } as FindOptionsRelations<Product>,
+      relations: {
+        category: true,
+        modifierGroups: true,
+      } as FindOptionsRelations<Product>,
+    });
+
+    // Filter only active modifier groups
+    products.forEach((p) => {
+      if (p.modifierGroups) {
+        (p as any).modifierGroups = p.modifierGroups.filter((mg) => mg.isActive);
+      }
     });
 
     return Promise.all(
-      products.map((product) => this.toProductResponse(product))
+      products.map((product) => this.toProductResponse(product, true))
     );
   }
 
@@ -309,96 +512,121 @@ export class ProductsService {
       throw new NotFoundException(`Product with ID ${id} not found`);
     }
 
-    // Check slug uniqueness
-    if (updateProductDto.slug && updateProductDto.slug !== product.slug) {
-      const existing = await this.productRepository.findOne({
-        where: { slug: updateProductDto.slug },
-        withDeleted: true,
+    // Validate modifier groups exist and are active
+    if (updateProductDto.modifierGroupIds?.length) {
+      const validGroups = await this.modifierGroupRepository.find({
+        where: updateProductDto.modifierGroupIds.map((mid) => ({ id: mid, isActive: true })),
       });
-      if (existing) {
-        throw new ConflictException(`Product with slug "${updateProductDto.slug}" already exists`);
+      if (validGroups.length !== updateProductDto.modifierGroupIds.length) {
+        throw new NotFoundException('One or more modifier groups are invalid or inactive');
       }
-    } else if (updateProductDto.name && !updateProductDto.slug) {
-      const newSlug = this.generateSlug(updateProductDto.name);
-      if (newSlug !== product.slug) {
-        const existing = await this.productRepository.findOne({
-          where: { slug: newSlug },
+    }
+
+    // Use transaction for data consistency
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Check slug uniqueness
+      if (updateProductDto.slug && updateProductDto.slug !== product.slug) {
+        const existing = await queryRunner.manager.findOne(Product, {
+          where: { slug: updateProductDto.slug },
           withDeleted: true,
         });
         if (existing) {
-          throw new ConflictException(`Product with slug "${newSlug}" already exists`);
+          throw new ConflictException(`Product with slug "${updateProductDto.slug}" already exists`);
         }
-        updateProductDto.slug = newSlug;
+      } else if (updateProductDto.name && !updateProductDto.slug) {
+        const newSlug = this.generateSlug(updateProductDto.name);
+        if (newSlug !== product.slug) {
+          const existing = await queryRunner.manager.findOne(Product, {
+            where: { slug: newSlug },
+            withDeleted: true,
+          });
+          if (existing) {
+            throw new ConflictException(`Product with slug "${newSlug}" already exists`);
+          }
+          updateProductDto.slug = newSlug;
+        }
       }
-    }
 
-    // Check SKU uniqueness
-    if (updateProductDto.sku && updateProductDto.sku !== product.sku) {
-      const existingSku = await this.productRepository.findOne({
-        where: { sku: updateProductDto.sku },
-        withDeleted: true,
-      });
-      if (existingSku) {
-        throw new ConflictException(`Product with SKU "${updateProductDto.sku}" already exists`);
+      // Check SKU uniqueness
+      if (updateProductDto.sku && updateProductDto.sku !== product.sku) {
+        const existingSku = await queryRunner.manager.findOne(Product, {
+          where: { sku: updateProductDto.sku },
+          withDeleted: true,
+        });
+        if (existingSku) {
+          throw new ConflictException(`Product with SKU "${updateProductDto.sku}" already exists`);
+        }
       }
-    }
 
-    // Build update object
-    const updateData: Partial<Product> = {};
-    if (updateProductDto.name !== undefined) updateData.name = updateProductDto.name;
-    if (updateProductDto.slug !== undefined) updateData.slug = updateProductDto.slug;
-    if (updateProductDto.sku !== undefined) updateData.sku = updateProductDto.sku || null;
-    if (updateProductDto.description !== undefined) updateData.description = updateProductDto.description || null;
-    if (updateProductDto.categoryId !== undefined) updateData.categoryId = updateProductDto.categoryId;
-    if (updateProductDto.mediaId !== undefined) updateData.mediaId = updateProductDto.mediaId;
-    if (updateProductDto.price !== undefined) updateData.price = updateProductDto.price;
-    if (updateProductDto.costPrice !== undefined) updateData.costPrice = updateProductDto.costPrice || null;
-    if (updateProductDto.unitType !== undefined) updateData.unitType = updateProductDto.unitType;
-    if (updateProductDto.hasVariants !== undefined) updateData.hasVariants = updateProductDto.hasVariants;
-    if (updateProductDto.isAvailable !== undefined) updateData.isAvailable = updateProductDto.isAvailable;
-    if (updateProductDto.isFeatured !== undefined) updateData.isFeatured = updateProductDto.isFeatured;
-    if (updateProductDto.preparationTime !== undefined) updateData.preparationTime = updateProductDto.preparationTime || null;
-    if (updateProductDto.sortOrder !== undefined) updateData.sortOrder = updateProductDto.sortOrder;
-    if (updateProductDto.isActive !== undefined) updateData.isActive = updateProductDto.isActive;
+      // Build update object
+      const updateData: Partial<Product> = {};
+      if (updateProductDto.name !== undefined) updateData.name = updateProductDto.name;
+      if (updateProductDto.slug !== undefined) updateData.slug = updateProductDto.slug;
+      if (updateProductDto.sku !== undefined) updateData.sku = updateProductDto.sku || null;
+      if (updateProductDto.description !== undefined) updateData.description = updateProductDto.description || null;
+      if (updateProductDto.categoryId !== undefined) updateData.categoryId = updateProductDto.categoryId;
+      if (updateProductDto.mediaId !== undefined) updateData.mediaId = updateProductDto.mediaId;
+      if (updateProductDto.price !== undefined) updateData.price = updateProductDto.price;
+      if (updateProductDto.costPrice !== undefined) updateData.costPrice = updateProductDto.costPrice || null;
+      if (updateProductDto.unitType !== undefined) updateData.unitType = updateProductDto.unitType;
+      if (updateProductDto.hasVariants !== undefined) updateData.hasVariants = updateProductDto.hasVariants;
+      if (updateProductDto.isAvailable !== undefined) updateData.isAvailable = updateProductDto.isAvailable;
+      if (updateProductDto.isFeatured !== undefined) updateData.isFeatured = updateProductDto.isFeatured;
+      if (updateProductDto.preparationTime !== undefined) updateData.preparationTime = updateProductDto.preparationTime || null;
+      if (updateProductDto.sortOrder !== undefined) updateData.sortOrder = updateProductDto.sortOrder;
+      if (updateProductDto.isActive !== undefined) updateData.isActive = updateProductDto.isActive;
 
-    Object.assign(product, updateData);
-    await this.productRepository.save(product);
+      Object.assign(product, updateData);
+      await queryRunner.manager.save(product);
 
-    // Handle tax changes
-    if (updateProductDto.taxIds !== undefined) {
-      await this.mediaRepository.manager.query(
-        `DELETE FROM product_taxes WHERE product_id = ?`,
-        [id]
-      );
-      for (const taxId of updateProductDto.taxIds) {
-        await this.mediaRepository.manager.query(
-          `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
-          [id, taxId]
+      // Handle tax changes
+      if (updateProductDto.taxIds !== undefined) {
+        await queryRunner.manager.query(
+          `DELETE FROM product_taxes WHERE product_id = ?`,
+          [id]
         );
+        for (const taxId of updateProductDto.taxIds) {
+          await queryRunner.manager.query(
+            `INSERT INTO product_taxes (id, product_id, tax_id, is_exclusive, created_at) VALUES (UUID(), ?, ?, 0, NOW())`,
+            [id, taxId]
+          );
+        }
       }
-    }
 
-    // Handle modifier group changes
-    if (updateProductDto.modifierGroupIds !== undefined) {
-      await this.mediaRepository.manager.query(
-        `DELETE FROM product_modifier_groups WHERE product_id = ?`,
-        [id]
-      );
-      for (const modifierGroupId of updateProductDto.modifierGroupIds) {
-        await this.mediaRepository.manager.query(
-          `INSERT INTO product_modifier_groups (id, product_id, modifier_group_id, sort_order, is_active, created_at) VALUES (UUID(), ?, ?, 0, 1, NOW())`,
-          [id, modifierGroupId]
+      // Handle modifier group changes with sort order
+      if (updateProductDto.modifierGroupIds !== undefined) {
+        await queryRunner.manager.query(
+          `DELETE FROM product_modifier_groups WHERE product_id = ?`,
+          [id]
         );
+        for (let i = 0; i < updateProductDto.modifierGroupIds.length; i++) {
+          await queryRunner.manager.query(
+            `INSERT INTO product_modifier_groups (id, product_id, modifier_group_id, sort_order, is_active, created_at) VALUES (UUID(), ?, ?, ?, 1, NOW())`,
+            [id, updateProductDto.modifierGroupIds[i], i]
+          );
+        }
+        // Update hasVariants flag
+        await queryRunner.manager.update(Product, id, { hasVariants: updateProductDto.modifierGroupIds.length > 0 });
       }
-      await this.productRepository.update(id, { hasVariants: updateProductDto.modifierGroupIds.length > 0 });
-    }
 
-    // Update media entityId
-    if (updateProductDto.mediaId !== undefined && updateProductDto.mediaId) {
-      await this.filesService.updateEntityId(updateProductDto.mediaId, id);
-    }
+      await queryRunner.commitTransaction();
 
-    return this.findOne(id);
+      // Update media entityId
+      if (updateProductDto.mediaId !== undefined && updateProductDto.mediaId) {
+        await this.filesService.updateEntityId(updateProductDto.mediaId, id);
+      }
+
+      return this.findOne(id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async remove(id: string): Promise<{ message: string }> {

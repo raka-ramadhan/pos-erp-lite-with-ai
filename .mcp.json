@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "my-mcp-server-erp-lite-local": {
+      "command": "node",
+      "args": [
+				"/var/www/html/mcp-servers/mcp-database-server/dist/src/index.js",
+				"--mysql",
+				"--host",
+				"127.0.0.1",
+				"--database",
+				"erp_lite",
+				"--port",
+				"3306",
+				"--user",
+				"superuser",
+				"--password",
+				"rhr12345"
+      ]
+    }
+  }
+}

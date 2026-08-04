@@ -241,6 +241,9 @@ export function ProductsPage() {
                 <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider w-24">
                   Stock
                 </th>
+                <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider w-40">
+                  Modifiers
+                </th>
                 <th className="text-right py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider w-32">
                   Actions
                 </th>
@@ -326,6 +329,15 @@ export function ProductsPage() {
                       >
                         {product.isAvailable ? 'In Stock' : 'Out'}
                       </Badge>
+                    </td>
+                    <td className="py-3 px-4">
+                      {product.modifierGroupCount > 0 ? (
+                        <Badge variant="info" size="sm">
+                          {product.modifierGroupCount} Modifier{product.modifierGroupCount > 1 ? 's' : ''}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-slate-400">None</span>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-end gap-1">

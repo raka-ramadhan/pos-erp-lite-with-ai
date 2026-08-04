@@ -14,6 +14,7 @@ import { FilesModule } from './modules/files/files.module';
 import { ProductsModule } from './modules/products/products.module';
 import { TaxesModule } from './modules/taxes/taxes.module';
 import { ModifierGroupsModule } from './modules/modifier-groups/modifier-groups.module';
+import { ModifiersModule } from './modules/modifiers/modifiers.module';
 import { HttpExceptionFilter } from './common/filters';
 import { TransformInterceptor } from './common/interceptors';
 
@@ -30,6 +31,7 @@ import { TransformInterceptor } from './common/interceptors';
     ProductsModule,
     TaxesModule,
     ModifierGroupsModule,
+    ModifiersModule,
   ],
   controllers: [AppController],
   providers: [

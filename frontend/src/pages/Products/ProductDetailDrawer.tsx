@@ -144,7 +144,7 @@ export function ProductDetailDrawer({ isOpen, onClose, product, onEdit }: Produc
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2">
                 <Layers className="w-4 h-4" />
-                Modifier Groups
+                Modifier Groups ({product.modifierGroupCount})
               </h4>
               <div className="space-y-2">
                 {product.modifierGroups.map((mg) => (
@@ -157,13 +157,27 @@ export function ProductDetailDrawer({ isOpen, onClose, product, onEdit }: Produc
                       <p className="text-xs text-slate-500">
                         {mg.selectionType === 'single' ? 'Single choice' : 'Multiple choice'}
                         {mg.isRequired && ' • Required'}
+                        {mg.modifierCount !== undefined && ` • ${mg.modifierCount} option${mg.modifierCount !== 1 ? 's' : ''}`}
                       </p>
                     </div>
-                    <Badge variant="secondary" size="sm">
-                      {mg.selectionType}
+                    <Badge variant={mg.selectionType === 'single' ? 'info' : 'warning'} size="sm">
+                      {mg.selectionType === 'single' ? 'Single' : 'Multiple'}
                     </Badge>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* No Modifier Groups */}
+          {(!product.modifierGroups || product.modifierGroups.length === 0) && (
+            <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
+              <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
+                <Layers className="w-5 h-5 text-slate-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-slate-500">Modifier Groups</p>
+                <p className="text-sm font-medium text-slate-700">No modifiers assigned</p>
               </div>
             </div>
           )}

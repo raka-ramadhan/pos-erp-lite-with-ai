@@ -12,6 +12,7 @@ import {
   BeforeInsert,
 } from 'typeorm';
 import { Category } from '../../categories/entities/category.entity';
+import { ModifierGroup } from '../../modifier-groups/entities/modifier-group.entity';
 
 @Entity('products')
 export class Product {
@@ -87,6 +88,14 @@ export class Product {
 
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt!: Date | null;
+
+  @ManyToMany(() => ModifierGroup, (modifierGroup) => modifierGroup.products)
+  @JoinTable({
+    name: 'product_modifier_groups',
+    joinColumn: { name: 'product_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'modifier_group_id', referencedColumnName: 'id' },
+  })
+  modifierGroups!: ModifierGroup[];
 
   @BeforeInsert()
   generateSlug() {

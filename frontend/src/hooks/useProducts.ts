@@ -33,6 +33,17 @@ export function useCreateProduct() {
   });
 }
 
+export function useCreateProductWithImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ data, imageFile }: { data: CreateProductDto; imageFile: File }) =>
+      productApi.createWithImage(data, imageFile),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({

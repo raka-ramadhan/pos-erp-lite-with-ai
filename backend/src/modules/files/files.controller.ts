@@ -59,12 +59,14 @@ export class FilesController {
     @Body('entityId') entityId: string,
     @CurrentUser('id') userId: string,
   ): Promise<FileResponseDto> {
+    console.log('[FilesController] Upload request:', { entityType, entityId, userId });
     const result = await this.filesService.uploadFile(
       file as any,
       entityType,
       entityId,
       userId,
     );
+    console.log('[FilesController] Upload result:', result);
     return new FileResponseDto({
       ...result,
       createdAt: new Date(),

@@ -80,6 +80,7 @@ export class FilesService {
     entityId?: string,
     userId?: string,
   ): Promise<FileUploadResult> {
+    console.log('[FilesService] uploadFile called:', { entityType, entityId, userId });
     // Validate
     if (!file) {
       throw new BadRequestException('No file provided');
@@ -110,6 +111,7 @@ export class FilesService {
     });
 
     const savedMedia = await this.mediaRepository.save(media);
+    console.log('[FilesService] Saved media with entityId:', savedMedia.entityId);
 
     return {
       id: savedMedia.id,
@@ -160,13 +162,18 @@ export class FilesService {
   }
 
   async updateEntityId(fileId: string, entityId: string): Promise<Media> {
+    console.log('[FilesService] updateEntityId called:', fileId, '->', entityId);
     const media = await this.mediaRepository.findOne({ where: { id: fileId } });
 
     if (!media) {
+      console.log('[FilesService] Media not found:', fileId);
       throw new NotFoundException('File not found');
     }
 
+    console.log('[FilesService] Found media:', media);
     media.entityId = entityId;
-    return this.mediaRepository.save(media);
+    const saved = await this.mediaRepository.save(media);
+    console.log('[FilesService] Saved media with new entityId:', saved.entityId);
+    return saved;
   }
 }

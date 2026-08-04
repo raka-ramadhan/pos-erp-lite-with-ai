@@ -8,6 +8,10 @@ import { PermissionsPage } from '../pages/Permissions';
 import { MenusPage } from '../pages/Menus';
 import { CategoriesPage } from '../pages/Categories';
 import { ProductsPage } from '../pages/Products/index';
+import { ModifierGroupsPage } from '../pages/ModifierGroups';
+import { ModifiersPage } from '../pages/Modifiers';
+import { TaxesPage } from '../pages/Taxes';
+import { MenuPermissionsPage } from '../pages/MenuPermissions';
 
 function RegisterPage() {
   return (
@@ -60,6 +64,10 @@ export function AppRoutes() {
         <Route path="menus" element={<MenusPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="modifier-groups" element={<ModifierGroupsPage />} />
+        <Route path="modifier" element={<ModifiersPage />} />
+        <Route path="taxes" element={<TaxesPage />} />
+        <Route path="menu-permissions" element={<MenuPermissionsPage />} />
       </Route>
 
       {/* Redirects */}

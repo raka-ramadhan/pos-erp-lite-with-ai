@@ -5,7 +5,7 @@ import { Input } from '../../components/ui/Input';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Select } from '../../components/ui/Select';
 import { ImageUpload } from '../../components/ui/ImageUpload';
-import { useCreateProduct, useUpdateProduct, useActiveCategories } from '../../hooks';
+import { useCreateProduct, useCreateProductWithImage, useUpdateProduct, useActiveCategories } from '../../hooks';
 import { uploadFile } from '../../api/file.api';
 import type { ProductResponse, Tax, ModifierGroup } from '../../api/product.api';
 import taxApi from '../../api/tax.api';
@@ -42,6 +42,7 @@ interface ProductModalProps {
 export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
   const isEditing = !!product;
   const createProduct = useCreateProduct();
+  const createProductWithImage = useCreateProductWithImage();
   const updateProduct = useUpdateProduct();
   const { data: categoriesResponse } = useActiveCategories();
 
@@ -71,7 +72,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
   const [loadingRefs, setLoadingRefs] = useState(false);
 
   const categories = categoriesResponse || [];
-  const isSubmitting = createProduct.isPending || updateProduct.isPending;
+  const isSubmitting = createProduct.isPending || updateProduct.isPending || createProductWithImage.isPending;
 
   // Load taxes and modifier groups
   useEffect(() => {
@@ -93,6 +94,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
   const loadModifierGroups = async () => {
     try {
       setLoadingRefs(true);
+      // getAllActive returns modifier groups with modifiers count
       const data = await modifierGroupApi.getAllActive();
       setModifierGroups(data);
     } catch (error) {
@@ -196,57 +198,68 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
   const onSubmit = async () => {
     if (!validate()) return;
 
+    // Build base payload
+    const basePayload = {
+      name: formData.name,
+      categoryId: formData.categoryId,
+      price: formData.price,
+      unitType: formData.unitType || 'unit',
+      isAvailable: formData.isAvailable,
+      isFeatured: formData.isFeatured,
+      sortOrder: formData.sortOrder ?? 0,
+      isActive: formData.isActive,
+      taxIds: selectedTaxIds,
+      modifierGroupIds: selectedModifierGroupIds,
+      ...(formData.sku && { sku: formData.sku }),
+      ...(formData.slug && { slug: formData.slug }),
+      ...(formData.description && { description: formData.description }),
+      ...(formData.costPrice !== undefined && { costPrice: formData.costPrice }),
+      ...(formData.preparationTime !== undefined && { preparationTime: formData.preparationTime }),
+    };
+
     try {
-      let mediaId = uploadedMediaId;
-
-      // Upload file if selected
-      if (selectedFile) {
-        setIsUploading(true);
-        try {
-          const uploadResult = await uploadFile({
-            file: selectedFile,
-            entityType: 'products',
-            entityId: product?.id,
-          });
-          mediaId = uploadResult.id;
-        } catch (error) {
-          console.error('Failed to upload file:', error);
-          setIsUploading(false);
-          return;
-        }
-        setIsUploading(false);
-      }
-
-      const payload: Record<string, unknown> = {
-        name: formData.name,
-        categoryId: formData.categoryId,
-        price: formData.price,
-        unitType: formData.unitType || 'unit',
-        isAvailable: formData.isAvailable,
-        isFeatured: formData.isFeatured,
-        sortOrder: formData.sortOrder ?? 0,
-        isActive: formData.isActive,
-        taxIds: selectedTaxIds,
-        modifierGroupIds: selectedModifierGroupIds,
-      };
-
-      if (formData.sku) payload.sku = formData.sku;
-      if (formData.slug) payload.slug = formData.slug;
-      if (formData.description) payload.description = formData.description;
-      if (formData.costPrice !== undefined) payload.costPrice = formData.costPrice;
-      if (formData.preparationTime !== undefined) payload.preparationTime = formData.preparationTime;
-
       if (isEditing) {
-        payload.mediaId = mediaId;
+        // For update: if new image selected, upload first then update with mediaId
+        let mediaId = uploadedMediaId;
+
+        if (selectedFile) {
+          setIsUploading(true);
+          try {
+            const uploadResult = await uploadFile({
+              file: selectedFile,
+              entityType: 'products',
+              entityId: product.id,
+            });
+            mediaId = uploadResult.id;
+          } catch (error) {
+            console.error('Failed to upload file:', error);
+            setIsUploading(false);
+            return;
+          }
+          setIsUploading(false);
+        }
+
+        const updatePayload = {
+          ...basePayload,
+          ...(mediaId && { mediaId }),
+        };
         updateProduct.mutate(
-          { id: product.id, data: payload as any },
+          { id: product.id, data: updatePayload },
           { onSuccess: () => onClose() }
         );
       } else {
-        if (mediaId) payload.mediaId = mediaId;
-        createProduct.mutate(payload as any, {
-          onSuccess: () => onClose(),
-        });
+        // For create: use special endpoint that handles image upload in one request
+        if (selectedFile) {
+          createProductWithImage.mutate(
+            { data: basePayload, imageFile: selectedFile },
+            { onSuccess: () => onClose() }
+          );
+        } else {
+          // No image - use regular create
+          createProduct.mutate(basePayload, {
+            onSuccess: () => onClose(),
+          });
+        }
       }
     } catch (error) {
       console.error('Submit error:', error);
@@ -439,7 +452,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                   {modifierGroups.map((mg) => (
                     <label
                       key={mg.id}
-                      className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100"
+                      className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 border border-transparent hover:border-indigo-200 transition-colors"
                     >
                       <input
                         type="checkbox"
@@ -453,6 +466,11 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                           {mg.selectionType === 'single' ? 'Single choice' : 'Multiple choice'}
                           {mg.isRequired && ' • Required'}
                         </p>
+                        {'modifierCount' in mg && mg.modifierCount !== undefined && (
+                          <p className="text-xs text-indigo-600 font-medium">
+                            {mg.modifierCount} option{mg.modifierCount !== 1 ? 's' : ''}
+                          </p>
+                        )}
                       </div>
                     </label>
                   ))}

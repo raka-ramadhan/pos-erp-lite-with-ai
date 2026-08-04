@@ -1,0 +1,1 @@
+export { MenuPermissionsPage } from './MenuPermissionsPage';

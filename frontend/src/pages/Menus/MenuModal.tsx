@@ -41,7 +41,7 @@ import type { MenuItem } from '../../types';
 const menuSchema = z.object({
   name: z.string().min(1, 'Menu name is required'),
   code: z.string().min(1, 'Menu code is required')
-    .regex(/^[a-z_]+$/, 'Code must be lowercase with underscores'),
+    .regex(/^[a-z][a-z0-9_-]*$/, 'Code must be lowercase, can use letters, numbers, underscores (_) or dashes (-)'),
   description: z.string().optional(),
   type: z.enum(['GROUP', 'MENU', 'SUBMENU', 'LINK']),
   icon: z.string().optional(),
@@ -293,7 +293,7 @@ export function MenuModal({ isOpen, onClose, menu }: MenuModalProps) {
               />
               <Input
                 label="Menu Code"
-                placeholder="e.g. dashboard"
+                placeholder="e.g. dashboard, modifier-groups"
                 error={errors.code?.message}
                 disabled={isEditing}
                 {...register('code')}
