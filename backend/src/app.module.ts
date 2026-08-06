@@ -17,6 +17,7 @@ import { ModifierGroupsModule } from './modules/modifier-groups/modifier-groups.
 import { ModifiersModule } from './modules/modifiers/modifiers.module';
 import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
 import { DiscountsModule } from './modules/discounts/discounts.module';
+import { DiningTablesModule } from './modules/dining-tables/dining-tables.module';
 import { HttpExceptionFilter } from './common/filters';
 import { TransformInterceptor } from './common/interceptors';
 
@@ -36,6 +37,7 @@ import { TransformInterceptor } from './common/interceptors';
     ModifiersModule,
     PaymentMethodsModule,
     DiscountsModule,
+    DiningTablesModule,
   ],
   controllers: [AppController],
   providers: [

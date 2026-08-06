@@ -14,6 +14,7 @@ import { TaxesPage } from '../pages/Taxes';
 import { PaymentMethodsPage } from '../pages/PaymentMethods';
 import { DiscountsPage } from '../pages/Discounts';
 import { MenuPermissionsPage } from '../pages/MenuPermissions';
+import { DiningTablesPage } from '../pages/DiningTables';
 
 function RegisterPage() {
   return (
@@ -72,6 +73,7 @@ export function AppRoutes() {
         <Route path="payment-methods" element={<PaymentMethodsPage />} />
         <Route path="discounts" element={<DiscountsPage />} />
         <Route path="menu-permissions" element={<MenuPermissionsPage />} />
+        <Route path="dining-tables" element={<DiningTablesPage />} />
       </Route>
 
       {/* Redirects */}
