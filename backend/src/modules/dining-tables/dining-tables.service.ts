@@ -4,8 +4,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, Like, FindOptionsOrder, IsNull } from 'typeorm';
+import { Repository, FindOptionsWhere, Like, FindOptionsOrder, IsNull, In } from 'typeorm';
 import { DiningTable, DiningTableStatus } from './entities/dining-table.entity';
+import { Order, OrderStatus } from '../orders/entities/order.entity';
 import {
   CreateDiningTableDto,
   UpdateDiningTableDto,
@@ -39,6 +40,20 @@ export interface DiningTableResponse {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// POS-specific response with active order info
+export interface POSDiningTableResponse extends DiningTableResponse {
+  activeOrder: {
+    id: string;
+    orderNumber: string;
+    orderStatus: OrderStatus;
+    customerCount: number;
+    itemCount: number;
+    totalAmount: number;
+    orderedAt: Date;
+    durationMinutes: number;
+  } | null;
 }
 
 @Injectable()
@@ -285,5 +300,57 @@ export class DiningTablesService {
       .getRawMany();
 
     return result.map((r) => r.areaName).filter(Boolean);
+  }
+
+  /**
+   * Get all active tables with their active order info for POS
+   * This is the main endpoint for POS table selection screen
+   */
+  async findAllForPOS(): Promise<POSDiningTableResponse[]> {
+    // Get all active tables
+    const tables = await this.diningTableRepository.find({
+      where: { isActive: true },
+      order: { sortOrder: 'ASC', tableName: 'ASC' },
+    });
+
+    // Get all active orders (open or in_progress)
+    const activeOrderStatuses = [OrderStatus.OPEN, OrderStatus.IN_PROGRESS];
+    const activeOrders = await this.diningTableRepository.manager
+      .createQueryBuilder(Order, 'order')
+      .where('order.orderStatus IN (:...statuses)', { statuses: activeOrderStatuses })
+      .andWhere('order.tableId IS NOT NULL')
+      .getMany();
+
+    // Map orders by tableId for quick lookup
+    const ordersByTableId = new Map<string, Order>();
+    activeOrders.forEach((order) => {
+      ordersByTableId.set(order.tableId!, order);
+    });
+
+    // Combine tables with their active orders
+    return tables.map((table) => {
+      const activeOrder = ordersByTableId.get(table.id);
+
+      // Calculate duration in minutes
+      const durationMinutes = activeOrder
+        ? Math.floor((Date.now() - new Date(activeOrder.orderedAt).getTime()) / 60000)
+        : 0;
+
+      return {
+        ...this.toDiningTableResponse(table),
+        activeOrder: activeOrder
+          ? {
+              id: activeOrder.id,
+              orderNumber: activeOrder.orderNumber,
+              orderStatus: activeOrder.orderStatus,
+              customerCount: activeOrder.customerCount,
+              itemCount: 0, // Will be populated when order items are implemented
+              totalAmount: Number(activeOrder.totalAmount),
+              orderedAt: activeOrder.orderedAt,
+              durationMinutes,
+            }
+          : null,
+      };
+    });
   }
 }

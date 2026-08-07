@@ -469,10 +469,59 @@ Permissions di database menggunakan format `{action}_{resource}` (snake_case):
 | Menus | `view_menus`, `create_menus`, `update_menus`, `delete_menus` |
 | Categories | `view_categories`, `create_categories`, `update_categories`, `delete_categories` |
 
-**Catatan:** 
+**Catatan:**
 - Permission code tidak bisa diedit jika sudah digunakan oleh role (RBAC constraint).
 - Gunakan `@RequirePermission('create_categories')` di controller sesuai format ini.
 - Frontend harus menggunakan permission code yang SAMA dengan backend.
+
+---
+
+## POS (Point of Sale) Permissions
+
+POS Cashier adalah terminal terpisah yang menggunakan permission **`use_cashier`**.
+
+### Aturan Permission untuk POS
+
+1. **Endpoint READ-only (`/active`)** - Gunakan `use_cashier` untuk:
+   - `/dining-tables/active`
+   - `/categories/active`
+   - `/products/active`
+   - `/payment-methods/active`
+   - `/taxes/active`
+   - `/discounts/active`
+   - `/orders` (POST, GET)
+
+2. **Dashboard endpoints** - Tetap gunakan granular permissions untuk admin features
+
+### Contoh Penggunaan
+
+```typescript
+// Untuk POS endpoints - READ only
+@Controller('dining-tables')
+@UseGuards(JwtAuthGuard, PermissionGuard)
+export class DiningTablesController {
+  // POS Cashier dapat mengakses
+  @Get('active')
+  @RequirePermission('use_cashier')
+  findAllActive() { ... }
+
+  // Admin only - hanya untuk dashboard
+  @Post()
+  @RequirePermission('create_diningtables')
+  create() { ... }
+}
+```
+
+### Alasan Desain
+
+| Pertimbangan | Penjelasan |
+|-------------|------------|
+| **Simplicity** | Cashier tidak perlu banyak permission, hanya butuh akses data POS |
+| **Security** | Dashboard tetap menggunakan granular permissions untuk admin |
+| **Separation** | POS adalah terminal kasir, berbeda dengan admin dashboard |
+| **Maintainability** | Tidak perlu manage banyak permission untuk POS |
+
+**Catatan:** User dengan role `cashier` dan permission `use_cashier` dapat mengakses semua endpoint POS read-only.
 
 ## Development Rules
 

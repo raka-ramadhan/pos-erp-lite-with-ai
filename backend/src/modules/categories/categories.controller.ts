@@ -36,7 +36,6 @@ export class CategoriesController {
   }
 
   @Get('active')
-  @RequirePermission('view_categories')
   findAllActive(): Promise<CategoryResponse[]> {
     return this.categoriesService.findAllActive();
   }

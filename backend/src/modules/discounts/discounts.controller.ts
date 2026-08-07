@@ -30,7 +30,7 @@ export class DiscountsController {
   }
 
   @Get('active')
-  @RequirePermission('view_discounts')
+  @RequirePermission('use_cashier')
   async findAllActive() {
     return this.discountsService.findAllActive();
   }

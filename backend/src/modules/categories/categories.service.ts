@@ -238,9 +238,93 @@ export class CategoriesService {
       relations: { parent: true } as FindOptionsRelations<Category>,
     });
 
-    return Promise.all(
-      categories.map((category) => this.toCategoryResponse(category))
+    // Batch load all media to avoid N+1 queries
+    const categoryIds = categories.map((c) => c.id);
+    const imageUrlMap = await this.batchGetImageUrls(categoryIds);
+
+    return categories.map((category) =>
+      this.toCategoryResponseBatch(category, imageUrlMap)
     );
+  }
+
+  /**
+   * Batch load image URLs for multiple categories (avoids N+1 queries)
+   */
+  private async batchGetImageUrls(categoryIds: string[]): Promise<Map<string, { imageUrl: string | null; mediaId: string | null }>> {
+    const result = new Map<string, { imageUrl: string | null; mediaId: string | null }>();
+
+    if (categoryIds.length === 0) return result;
+
+    const mediaList = await this.mediaRepository.find({
+      where: categoryIds.map((entityId) => ({
+        entityType: 'categories' as any,
+        entityId,
+      })),
+      order: { createdAt: 'DESC' },
+    });
+
+    // Also check 'category' (legacy) entityType
+    const legacyMedia = await this.mediaRepository.find({
+      where: categoryIds.map((entityId) => ({
+        entityType: 'category' as any,
+        entityId,
+      })),
+      order: { createdAt: 'DESC' },
+    });
+
+    // Combine and dedupe
+    const allMedia = [...mediaList];
+    for (const m of legacyMedia) {
+      if (!allMedia.some((existing) => existing.entityId === m.entityId && existing.entityType === m.entityType)) {
+        allMedia.push(m);
+      }
+    }
+
+    // Group by entityId and take first (most recent per type)
+    const mediaByCategory = new Map<string, any>();
+    for (const media of allMedia) {
+      const key = `${media.entityType}-${media.entityId}`;
+      if (!mediaByCategory.has(key)) {
+        mediaByCategory.set(key, media);
+      }
+    }
+
+    for (const id of categoryIds) {
+      const primary = mediaByCategory.get(`categories-${id}`);
+      const legacy = mediaByCategory.get(`category-${id}`);
+      const media = primary || legacy;
+      result.set(id, {
+        imageUrl: media?.url || null,
+        mediaId: media?.id || null,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Batch version of toCategoryResponse (uses pre-loaded data)
+   */
+  private toCategoryResponseBatch(
+    category: Category,
+    imageUrlMap: Map<string, { imageUrl: string | null; mediaId: string | null }>
+  ): CategoryResponse {
+    const imageData = imageUrlMap.get(category.id) || { imageUrl: null, mediaId: null };
+    return {
+      id: category.id,
+      outletId: category.outletId,
+      parentId: category.parentId,
+      parent: category.parent ? { id: category.parent.id, name: category.parent.name } : null,
+      name: category.name,
+      slug: category.slug,
+      description: category.description,
+      imageUrl: imageData.imageUrl,
+      mediaId: imageData.mediaId,
+      sortOrder: category.sortOrder,
+      isActive: category.isActive,
+      createdAt: category.createdAt,
+      updatedAt: category.updatedAt,
+    };
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto): Promise<CategoryResponse> {

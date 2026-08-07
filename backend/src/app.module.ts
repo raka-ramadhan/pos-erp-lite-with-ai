@@ -18,6 +18,7 @@ import { ModifiersModule } from './modules/modifiers/modifiers.module';
 import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
 import { DiscountsModule } from './modules/discounts/discounts.module';
 import { DiningTablesModule } from './modules/dining-tables/dining-tables.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { HttpExceptionFilter } from './common/filters';
 import { TransformInterceptor } from './common/interceptors';
 
@@ -38,6 +39,7 @@ import { TransformInterceptor } from './common/interceptors';
     PaymentMethodsModule,
     DiscountsModule,
     DiningTablesModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [

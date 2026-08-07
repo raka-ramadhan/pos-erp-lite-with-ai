@@ -30,7 +30,7 @@ export class TaxesController {
   }
 
   @Get('active')
-  @RequirePermission('view_taxes')
+  @RequirePermission('use_cashier')
   async findAllActive() {
     const taxes = await this.taxesService.findAllActive();
     return { data: taxes };

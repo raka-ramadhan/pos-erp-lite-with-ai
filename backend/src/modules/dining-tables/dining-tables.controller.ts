@@ -48,15 +48,25 @@ export class DiningTablesController {
   }
 
   @Get('active')
-  @RequirePermission('view_diningtables')
+  @RequirePermission('use_cashier')
   findAllActive(): Promise<DiningTableResponse[]> {
     return this.diningTablesService.findAllActive();
   }
 
   @Get('areas')
-  @RequirePermission('view_diningtables')
+  @RequirePermission('use_cashier')
   getDistinctAreas(): Promise<string[]> {
     return this.diningTablesService.getDistinctAreas();
+  }
+
+  /**
+   * POS-specific endpoint: Get all tables with active order info
+   * Returns tables with their current status and active order details
+   */
+  @Get('pos')
+  @RequirePermission('use_cashier')
+  findAllForPOS() {
+    return this.diningTablesService.findAllForPOS();
   }
 
   @Get(':id')

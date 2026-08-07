@@ -7,11 +7,9 @@ import { SocialLoginButton } from '../../components/auth';
 import { useLogin } from '../../hooks';
 import { clearError } from '../../store/slices/authSlice';
 import type { RootState } from '../../store';
+import type { LoginRequest } from '../../types';
 
-interface LoginFormData {
-  email: string;
-  password: string;
-}
+type LoginFormData = LoginRequest;
 
 export function LoginForm() {
   const navigate = useNavigate();
@@ -45,11 +43,15 @@ export function LoginForm() {
   }, [dispatch]);
 
   const onSubmit = (data: LoginFormData) => {
-    loginMutation.mutate(data, {
-      onSuccess: () => {
-        navigate('/dashboard');
+    // For Dashboard login, always send app: 'dashboard'
+    loginMutation.mutate(
+      { ...data, app: 'dashboard' },
+      {
+        onSuccess: () => {
+          navigate('/dashboard');
+        },
       },
-    });
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

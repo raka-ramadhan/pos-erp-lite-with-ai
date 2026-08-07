@@ -92,7 +92,7 @@ export class ProductsController {
   }
 
   @Get('active')
-  @RequirePermission('view_products')
+  @RequirePermission('use_cashier')
   async findAllActive() {
     return this.productsService.findAllActive();
   }
@@ -101,6 +101,12 @@ export class ProductsController {
   @RequirePermission('view_products')
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.productsService.findOne(id);
+  }
+
+  @Get(':id/with-modifiers')
+  @RequirePermission('use_cashier')
+  async findOneWithModifiers(@Param('id', ParseUUIDPipe) id: string) {
+    return this.productsService.findOneWithModifiers(id);
   }
 
   @Patch(':id')

@@ -35,12 +35,47 @@ export interface ModifierGroupSummary {
   modifierCount: number;
 }
 
+export interface ModifierDetail {
+  id: string;
+  name: string;
+  sku: string | null;
+  additionalPrice: number;
+  isDefault: boolean;
+  isAvailable: boolean;
+  sortOrder: number;
+}
+
+export interface ModifierGroupWithModifiers {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  selectionType: string;
+  isRequired: boolean;
+  minSelections: number | null;
+  maxSelections: number | null;
+  modifiers: ModifierDetail[];
+}
+
 export interface TaxSummary {
   id: string;
   code: string;
   name: string;
   taxType: string;
   rate: number;
+}
+
+export interface ProductWithModifiersResponse {
+  id: string;
+  name: string;
+  sku: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  price: number;
+  unitType: string;
+  hasVariants: boolean;
+  isAvailable: boolean;
+  modifierGroups: ModifierGroupWithModifiers[];
 }
 
 export interface ProductResponse {
@@ -514,9 +549,146 @@ export class ProductsService {
       }
     });
 
+    // Batch load all media and taxes to avoid N+1 queries
+    const productIds = products.map((p) => p.id);
+    const imageUrlMap = await this.batchGetImageUrls(productIds);
+    const taxMap = await this.batchGetProductTaxes(productIds);
+
     return Promise.all(
-      products.map((product) => this.toProductResponse(product, true))
+      products.map((product) =>
+        this.toProductResponseBatch(product, true, imageUrlMap, taxMap)
+      )
     );
+  }
+
+  /**
+   * Batch load image URLs for multiple products (avoids N+1 queries)
+   */
+  private async batchGetImageUrls(productIds: string[]): Promise<Map<string, { imageUrl: string | null; mediaId: string | null }>> {
+    const result = new Map<string, { imageUrl: string | null; mediaId: string | null }>();
+
+    if (productIds.length === 0) return result;
+
+    const mediaList = await this.mediaRepository.find({
+      where: productIds.map((entityId) => ({
+        entityType: 'products' as any,
+        entityId,
+      })),
+      order: { createdAt: 'DESC' },
+    });
+
+    // Group by entityId and take first (most recent)
+    const mediaByProduct = new Map<string, any>();
+    for (const media of mediaList) {
+      if (!mediaByProduct.has(media.entityId)) {
+        mediaByProduct.set(media.entityId, media);
+      }
+    }
+
+    for (const id of productIds) {
+      const media = mediaByProduct.get(id);
+      result.set(id, {
+        imageUrl: media?.url || null,
+        mediaId: media?.id || null,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Batch load taxes for multiple products (avoids N+1 queries)
+   */
+  private async batchGetProductTaxes(productIds: string[]): Promise<Map<string, TaxSummary | null>> {
+    const result = new Map<string, TaxSummary | null>();
+
+    if (productIds.length === 0) return result;
+
+    const placeholders = productIds.map(() => '?').join(',');
+    const taxData = await this.mediaRepository.manager.query(
+      `SELECT pt.product_id, t.id, t.code, t.name, t.tax_type, t.rate
+       FROM taxes t
+       INNER JOIN product_taxes pt ON t.id = pt.tax_id
+       WHERE pt.product_id IN (${placeholders}) AND t.is_active = 1`,
+      productIds
+    );
+
+    const taxByProduct = new Map<string, any>();
+    for (const row of taxData) {
+      if (!taxByProduct.has(row.product_id)) {
+        taxByProduct.set(row.product_id, {
+          id: row.id,
+          code: row.code,
+          name: row.name,
+          taxType: row.tax_type,
+          rate: Number(row.rate),
+        });
+      }
+    }
+
+    for (const id of productIds) {
+      result.set(id, taxByProduct.get(id) || null);
+    }
+
+    return result;
+  }
+
+  /**
+   * Batch version of toProductResponse (uses pre-loaded data)
+   */
+  private toProductResponseBatch(
+    product: Product,
+    includeRelations: boolean,
+    imageUrlMap: Map<string, { imageUrl: string | null; mediaId: string | null }>,
+    taxMap: Map<string, TaxSummary | null>
+  ): ProductResponse {
+    const imageData = imageUrlMap.get(product.id) || { imageUrl: null, mediaId: null };
+    const tax = taxMap.get(product.id) || null;
+
+    let modifierGroups: ModifierGroupSummary[] = [];
+    if (includeRelations && product.modifierGroups) {
+      modifierGroups = product.modifierGroups
+        .filter((mg) => mg.isActive)
+        .sort((a, b) => (a as any).sortOrder - (b as any).sortOrder)
+        .map((mg) => ({
+          id: mg.id,
+          name: mg.name,
+          slug: mg.slug,
+          selectionType: mg.selectionType,
+          isRequired: mg.isRequired,
+          minSelections: mg.minSelections,
+          maxSelections: mg.maxSelections,
+          modifierCount: mg.modifiers?.length || 0,
+        }));
+    }
+
+    return {
+      id: product.id,
+      outletId: product.outletId,
+      categoryId: product.categoryId,
+      category: product.category ? { id: product.category.id, name: product.category.name } : null,
+      sku: product.sku,
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      imageUrl: imageData.imageUrl,
+      mediaId: imageData.mediaId,
+      price: Number(product.price),
+      costPrice: product.costPrice ? Number(product.costPrice) : null,
+      unitType: product.unitType,
+      hasVariants: product.hasVariants || modifierGroups.length > 0,
+      isAvailable: product.isAvailable,
+      isFeatured: product.isFeatured,
+      preparationTime: product.preparationTime,
+      sortOrder: product.sortOrder,
+      isActive: product.isActive,
+      taxId: tax?.id || null,
+      tax,
+      modifierGroups,
+      modifierGroupCount: modifierGroups.length,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    };
   }
 
   async update(id: string, updateProductDto: UpdateProductDto): Promise<ProductResponse> {
@@ -671,5 +843,64 @@ export class ProductsService {
 
     await this.productRepository.restore(id);
     return this.findOne(id);
+  }
+
+  async findOneWithModifiers(id: string): Promise<ProductWithModifiersResponse> {
+    const product = await this.productRepository.findOne({
+      where: { id, isActive: true },
+      relations: {
+        category: true,
+        modifierGroups: {
+          modifiers: true,
+        },
+      } as FindOptionsRelations<Product>,
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+
+    // Get image URL
+    const { imageUrl } = await this.getImageUrl(product.id);
+
+    // Filter active modifier groups and their active modifiers
+    const modifierGroups: ModifierGroupWithModifiers[] = product.modifierGroups
+      .filter((mg) => mg.isActive)
+      .sort((a, b) => (a as any).sortOrder - (b as any).sortOrder)
+      .map((mg) => ({
+        id: mg.id,
+        name: mg.name,
+        slug: mg.slug,
+        description: mg.description,
+        selectionType: mg.selectionType,
+        isRequired: mg.isRequired,
+        minSelections: mg.minSelections,
+        maxSelections: mg.maxSelections,
+        modifiers: mg.modifiers
+          .filter((m) => m.isActive && m.isAvailable)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((m) => ({
+            id: m.id,
+            name: m.name,
+            sku: m.sku,
+            additionalPrice: Number(m.additionalPrice),
+            isDefault: m.isDefault,
+            isAvailable: m.isAvailable,
+            sortOrder: m.sortOrder,
+          })),
+      }));
+
+    return {
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      description: product.description,
+      imageUrl,
+      price: Number(product.price),
+      unitType: product.unitType,
+      hasVariants: modifierGroups.length > 0,
+      isAvailable: product.isAvailable,
+      modifierGroups,
+    };
   }
 }

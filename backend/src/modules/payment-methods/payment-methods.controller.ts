@@ -30,7 +30,7 @@ export class PaymentMethodsController {
   }
 
   @Get('active')
-  @RequirePermission('view_paymentmethods')
+  @RequirePermission('use_cashier')
   async findAllActive() {
     const paymentMethods = await this.paymentMethodsService.findAllActive();
     return { data: paymentMethods };
