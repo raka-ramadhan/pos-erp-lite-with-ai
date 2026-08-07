@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Percent, Tag, Check, AlertCircle, Loader2 } from 'lucide-react';
-import { Button } from '../../ui';
+import { Button, Badge } from '../../ui';
+import { ErrorBoundary } from '../../common/ErrorBoundary';
 import { useDiscounts, useApplyDiscount } from '../../../hooks';
 import { cn } from '../../../utils';
 import type { Discount } from '../../../api/discounts';
@@ -32,16 +33,27 @@ export function DiscountPickerModal({
   const validDiscounts = useMemo(() => {
     return discounts.filter((discount) => {
       // Check minimum order amount
-      if (discount.minOrderAmount && currentSubtotal < discount.minOrderAmount) {
+      if (discount.minOrderAmount && currentSubtotal < Number(discount.minOrderAmount)) {
         return false;
       }
       // Check date validity
       const now = new Date();
-      if (discount.startDate && new Date(discount.startDate) > now) {
-        return false;
-      }
-      if (discount.endDate && new Date(discount.endDate) < now) {
-        return false;
+      try {
+        if (discount.startDate) {
+          const startDate = new Date(discount.startDate);
+          if (!isNaN(startDate.getTime()) && startDate > now) {
+            return false;
+          }
+        }
+        if (discount.endDate) {
+          const endDate = new Date(discount.endDate);
+          if (!isNaN(endDate.getTime()) && endDate < now) {
+            return false;
+          }
+        }
+      } catch {
+        // If date parsing fails, include the discount
+        return true;
       }
       return true;
     });
@@ -104,13 +116,14 @@ export function DiscountPickerModal({
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={handleClose}
         >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
-          >
+          <ErrorBoundary>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+            >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -200,6 +213,7 @@ export function DiscountPickerModal({
               </div>
             </div>
           </motion.div>
+          </ErrorBoundary>
         </motion.div>
       )}
     </AnimatePresence>
