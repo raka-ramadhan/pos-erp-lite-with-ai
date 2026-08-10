@@ -8,22 +8,31 @@ import {
   type Tax,
   type Discount,
   type PaymentMethod,
+  type SyncStatus,
+  type SyncedCartItem,
+  type SyncQueueItem,
 } from '../../types';
 import type { Order } from '../../api/orders';
+import {
+  generateTempId,
+  calculateItemTotal,
+  calculateModifierTotal,
+  areModifiersEqual,
+} from '../../utils/cartPersistence';
 
-// Generate unique cart item ID
-function generateCartItemId(): string {
-  return `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+// Generate unique session ID
+function generateSessionId(): string {
+  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 // Calculate item total
-function calculateItemTotal(
+function calculateCartItemTotal(
   basePrice: number,
   modifiers: SelectedModifier[],
   quantity: number
 ): number {
-  const modifierTotal = modifiers.reduce((sum, m) => sum + m.additionalPrice, 0);
-  return (basePrice + modifierTotal) * quantity;
+  const modifierTotal = calculateModifierTotal(modifiers);
+  return calculateItemTotal(basePrice, modifierTotal, quantity);
 }
 
 interface POSState {
@@ -38,9 +47,16 @@ interface POSState {
   customerName: string;
   customerPhone: string;
 
-  // Cart
+  // Cart (Legacy - for backward compatibility)
   cartItems: CartItem[];
   appliedDiscount: Discount | null;
+
+  // Synced Cart (Hybrid approach - PRIMARY)
+  sessionId: string;
+  syncedCartItems: SyncedCartItem[];
+  syncQueue: SyncQueueItem[];
+  syncStatus: SyncStatus;
+  globalSyncError: string | null;
 
   // Tax
   activeTaxes: Tax[];
@@ -67,6 +83,12 @@ const initialState: POSState = {
   customerPhone: '',
   cartItems: [],
   appliedDiscount: null,
+  // Synced Cart (Hybrid)
+  sessionId: generateSessionId(),
+  syncedCartItems: [],
+  syncQueue: [],
+  syncStatus: 'synced',
+  globalSyncError: null,
   activeTaxes: [],
   lastTransaction: null,
   isCartOpen: false,
@@ -297,10 +319,171 @@ const posSlice = createSlice({
       state.customerPhone = '';
       state.cartItems = [];
       state.appliedDiscount = null;
+      // Keep sessionId but reset synced cart
+      state.syncedCartItems = [];
+      state.syncQueue = [];
+      state.syncStatus = 'synced';
+      state.globalSyncError = null;
       state.lastTransaction = null;
       state.isCartOpen = false;
       state.isModifierModalOpen = false;
       state.selectedProductForModifier = null;
+    },
+
+    // ==================== SYNCED CART REDUCERS ====================
+
+    // Set entire synced cart (for session recovery)
+    setSyncedCartItems: (state, action: PayloadAction<SyncedCartItem[]>) => {
+      state.syncedCartItems = action.payload;
+    },
+
+    // Add item to synced cart (optimistic)
+    addToSyncedCart: (
+      state,
+      action: PayloadAction<{
+        productId: string;
+        productName: string;
+        basePrice: number;
+        quantity: number;
+        modifiers: SelectedModifier[];
+        notes?: string;
+        variantName?: string;
+      }>
+    ) => {
+      const { productId, productName, basePrice, quantity, modifiers, notes, variantName } = action.payload;
+
+      // Check if same product with same modifiers already exists
+      const existingItem = state.syncedCartItems.find((item) => {
+        if (item.productId !== productId) return false;
+        if (item.variantName !== variantName) return false;
+        return areModifiersEqual(item.modifiers, modifiers);
+      });
+
+      if (existingItem) {
+        // Update quantity (optimistic)
+        existingItem.quantity += quantity;
+        existingItem.itemTotal = calculateCartItemTotal(
+          existingItem.basePrice,
+          existingItem.modifiers,
+          existingItem.quantity
+        );
+        existingItem.syncStatus = 'pending';
+      } else {
+        // Add new item (optimistic)
+        const modifierTotal = calculateModifierTotal(modifiers);
+        const newItem: SyncedCartItem = {
+          tempId: generateTempId(),
+          productId,
+          productName,
+          variantName,
+          basePrice,
+          quantity,
+          modifiers,
+          notes: notes || '',
+          itemTotal: calculateItemTotal(basePrice, modifierTotal, quantity),
+          syncStatus: 'pending',
+        };
+        state.syncedCartItems.push(newItem);
+      }
+    },
+
+    // Update synced cart item
+    updateSyncedCartItem: (
+      state,
+      action: PayloadAction<{ tempId: string; quantity: number; notes?: string }>
+    ) => {
+      const item = state.syncedCartItems.find((i) => i.tempId === action.payload.tempId);
+      if (item) {
+        if (action.payload.quantity <= 0) {
+          // Mark for removal (optimistic)
+          state.syncedCartItems = state.syncedCartItems.filter(
+            (i) => i.tempId !== action.payload.tempId
+          );
+        } else {
+          item.quantity = action.payload.quantity;
+          item.itemTotal = calculateCartItemTotal(
+            item.basePrice,
+            item.modifiers,
+            item.quantity
+          );
+          if (action.payload.notes !== undefined) {
+            item.notes = action.payload.notes;
+          }
+          item.syncStatus = 'pending';
+        }
+      }
+    },
+
+    // Remove item from synced cart
+    removeFromSyncedCart: (state, action: PayloadAction<string>) => {
+      state.syncedCartItems = state.syncedCartItems.filter(
+        (i) => i.tempId !== action.payload
+      );
+    },
+
+    // Update item sync status
+    updateItemSyncStatus: (
+      state,
+      action: PayloadAction<{ tempId: string; status: SyncStatus; serverId?: string; error?: string }>
+    ) => {
+      const item = state.syncedCartItems.find((i) => i.tempId === action.payload.tempId);
+      if (item) {
+        item.syncStatus = action.payload.status;
+        if (action.payload.serverId) {
+          item.serverId = action.payload.serverId;
+        }
+        if (action.payload.error) {
+          item.error = action.payload.error;
+        }
+      }
+    },
+
+    // Set all items sync status
+    setAllItemsSyncStatus: (state, action: PayloadAction<SyncStatus>) => {
+      state.syncedCartItems.forEach((item) => {
+        item.syncStatus = action.payload;
+      });
+    },
+
+    // Add to sync queue
+    addToSyncQueue: (state, action: PayloadAction<SyncQueueItem>) => {
+      state.syncQueue.push(action.payload);
+    },
+
+    // Remove from sync queue
+    removeFromSyncQueue: (state, action: PayloadAction<string>) => {
+      state.syncQueue = state.syncQueue.filter((item) => item.id !== action.payload);
+    },
+
+    // Clear sync queue
+    clearSyncQueue: (state) => {
+      state.syncQueue = [];
+    },
+
+    // Set global sync status
+    setSyncStatus: (state, action: PayloadAction<SyncStatus>) => {
+      state.syncStatus = action.payload;
+    },
+
+    // Set global sync error
+    setGlobalSyncError: (state, action: PayloadAction<string | null>) => {
+      state.globalSyncError = action.payload;
+      if (action.payload) {
+        state.syncStatus = 'failed';
+      }
+    },
+
+    // Clear synced cart
+    clearSyncedCart: (state) => {
+      state.syncedCartItems = [];
+      state.syncQueue = [];
+      state.syncStatus = 'synced';
+      state.globalSyncError = null;
+    },
+
+    // New session ID
+    regenerateSessionId: (state) => {
+      state.sessionId = generateSessionId();
     },
   },
 });
@@ -329,6 +512,20 @@ export const {
   setLastTransaction,
   startNewOrder,
   resetPOS,
+  // Synced cart actions
+  setSyncedCartItems,
+  addToSyncedCart,
+  updateSyncedCartItem,
+  removeFromSyncedCart,
+  updateItemSyncStatus,
+  setAllItemsSyncStatus,
+  addToSyncQueue,
+  removeFromSyncQueue,
+  clearSyncQueue,
+  setSyncStatus,
+  setGlobalSyncError,
+  clearSyncedCart,
+  regenerateSessionId,
 } = posSlice.actions;
 
 export default posSlice.reducer;

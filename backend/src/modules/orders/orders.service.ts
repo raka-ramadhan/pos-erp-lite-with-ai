@@ -1005,4 +1005,36 @@ export class OrdersService {
       updatedAt: item.updatedAt,
     };
   }
+
+  /**
+   * Cancel an order (soft delete)
+   * Used when user cancels or abandons the order
+   */
+  async cancelOrder(orderId: string, reason: string): Promise<void> {
+    const order = await this.findOne(orderId);
+
+    // Business validation: Cannot cancel completed or already cancelled orders
+    if (
+      order.orderStatus === OrderStatus.COMPLETED ||
+      order.orderStatus === OrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        `Cannot cancel ${order.orderStatus} order`
+      );
+    }
+
+    // Delete all order items (cascade)
+    await this.orderItemRepository.delete({ orderId });
+
+    // Update order status to CANCELLED
+    await this.orderRepository.update(orderId, {
+      orderStatus: OrderStatus.CANCELLED,
+      cancelledAt: new Date(),
+      cancelledReason: reason,
+      subtotal: 0,
+      taxAmount: 0,
+      discountAmount: 0,
+      totalAmount: 0,
+    });
+  }
 }

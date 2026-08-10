@@ -1,9 +1,14 @@
+import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDispatch, useSelector } from 'react-redux';
 import orderItemsApi, {
   type CreateOrderItemPayload,
   type UpdateOrderItemPayload,
   type OrderWithItems,
 } from '../api/order-items';
+import { removeFromSyncedCart, setSyncStatus } from '../store/slices/posSlice';
+import { createDebouncedSave, createPersistedCart } from '../utils/cartPersistence';
+import type { RootState } from '../store';
 
 // Hook: Get order with items
 export function useOrderWithItems(orderId: string | null) {
@@ -11,8 +16,7 @@ export function useOrderWithItems(orderId: string | null) {
     queryKey: ['orders', orderId, 'with-items'],
     queryFn: () => orderItemsApi.getOrderWithItems(orderId!),
     enabled: !!orderId,
-    staleTime: 30 * 1000, // 30 seconds - mutations will invalidate
-    // No refetchInterval - data is refreshed via mutations
+    staleTime: 30 * 1000,
   });
 }
 
@@ -28,36 +32,48 @@ export function useOrderItems(orderId: string | null) {
 
 // Hook: Add item to order
 export function useAddOrderItem(orderId: string | null) {
+  const dispatch = useDispatch();
+  const posState = useSelector((state: RootState) => state.pos);
   const queryClient = useQueryClient();
+  const debouncedSave = createDebouncedSave(300);
 
   return useMutation({
     mutationFn: (payload: CreateOrderItemPayload) =>
       orderItemsApi.addOrderItem(orderId!, payload),
     onSuccess: () => {
-      // Invalidate order items cache - must match useOrderWithItems queryKey
+      // Invalidate order items cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'with-items'] });
-      // Also invalidate calculation cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'calculation'] });
     },
   });
 }
 
-// Hook: Update order item
+// Hook: Update order item - Also syncs with Redux
 export function useUpdateOrderItem(orderId: string | null) {
+  const dispatch = useDispatch();
+  const posState = useSelector((state: RootState) => state.pos);
   const queryClient = useQueryClient();
+  const debouncedSave = createDebouncedSave(300);
 
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       itemId,
       payload,
     }: {
       itemId: string;
       payload: UpdateOrderItemPayload;
-    }) => orderItemsApi.updateOrderItem(orderId!, itemId, payload),
-    onSuccess: () => {
-      // Invalidate order items cache - must match useOrderWithItems queryKey
+    }) => {
+      // Find tempId in Redux
+      const syncedItem = posState.syncedCartItems.find(item => item.serverId === itemId);
+
+      // Update on server
+      await orderItemsApi.updateOrderItem(orderId!, itemId, payload);
+
+      return { serverItemId: itemId, tempId: syncedItem?.tempId, payload };
+    },
+    onSuccess: (result) => {
+      // Invalidate order items cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'with-items'] });
-      // Also invalidate calculation cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'calculation'] });
     },
   });
@@ -71,25 +87,47 @@ export function useUpdateOrderItemNotes(orderId: string | null) {
     mutationFn: ({ itemId, notes }: { itemId: string; notes: string }) =>
       orderItemsApi.updateOrderItemNotes(orderId!, itemId, notes),
     onSuccess: () => {
-      // Invalidate order items cache - must match useOrderWithItems queryKey
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'with-items'] });
-      // Also invalidate calculation cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'calculation'] });
     },
   });
 }
 
-// Hook: Remove order item
+// Hook: Remove order item - FIXED: Also syncs with Redux and localStorage
 export function useRemoveOrderItem(orderId: string | null) {
+  const dispatch = useDispatch();
+  const posState = useSelector((state: RootState) => state.pos);
   const queryClient = useQueryClient();
+  const debouncedSave = createDebouncedSave(300);
 
   return useMutation({
-    mutationFn: (itemId: string) =>
-      orderItemsApi.removeOrderItem(orderId!, itemId),
-    onSuccess: () => {
-      // Invalidate order items cache - must match useOrderWithItems queryKey
+    mutationFn: async (itemId: string) => {
+      // First, find the tempId in Redux syncedCartItems that matches this server itemId
+      const syncedItem = posState.syncedCartItems.find(item => item.serverId === itemId);
+
+      // Remove from server
+      await orderItemsApi.removeOrderItem(orderId!, itemId);
+
+      return { serverItemId: itemId, tempId: syncedItem?.tempId };
+    },
+    onSuccess: (result) => {
+      // Also remove from Redux syncedCartItems if it exists
+      if (result.tempId) {
+        dispatch(removeFromSyncedCart(result.tempId));
+      }
+
+      // Save to localStorage
+      const persistedCart = createPersistedCart({
+        sessionId: posState.sessionId,
+        orderId: posState.currentOrder?.id || null,
+        orderType: posState.orderType,
+        selectedTableId: posState.selectedTable?.id || null,
+        cartItems: posState.syncedCartItems.filter(item => item.tempId !== result.tempId),
+      });
+      debouncedSave(persistedCart);
+
+      // Invalidate order items cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'with-items'] });
-      // Also invalidate calculation cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'calculation'] });
     },
   });

@@ -1,44 +1,69 @@
 import { useState } from 'react';
 import { useSelector } from 'react-redux';
-import { ShoppingCart, Percent, Tag, Receipt, Loader2, UtensilsCrossed, MinusCircle, PlusCircle, Trash2 } from 'lucide-react';
+import { ShoppingCart, Percent, Tag, Receipt, Loader2, UtensilsCrossed, MinusCircle, PlusCircle, Trash2, AlertCircle, CheckCircle, CloudOff } from 'lucide-react';
 import { Button, Badge } from '../../ui';
-import { useOrderCalculation, useApplyDiscount, useRemoveDiscount, useOrderWithItems, useUpdateOrderItem, useRemoveOrderItem } from '../../../hooks';
+import { useOrderCalculation, useApplyDiscount, useRemoveDiscount, useUpdateCartItem, useRemoveFromCart } from '../../../hooks';
 import type { RootState } from '../../../store';
 import type { Discount } from '../../../api/discounts';
+import type { SyncedCartItem, SyncStatus } from '../../../types';
 
 interface OrderSummaryProps {
   onCheckout?: () => void;
   onApplyDiscount?: () => void;
 }
 
+// Sync status indicator component
+function SyncStatusBadge({ status }: { status: SyncStatus }) {
+  if (status === 'synced') return null;
+
+  const config = {
+    pending: { icon: Loader2, color: 'text-slate-400', label: 'Menyimpan...', animate: true },
+    syncing: { icon: Loader2, color: 'text-amber-400', label: 'Sync...', animate: true },
+    failed: { icon: CloudOff, color: 'text-red-500', label: 'Gagal sync', animate: false },
+  };
+
+  const { icon: Icon, color, label, animate } = config[status];
+
+  return (
+    <span className={`flex items-center gap-1 text-xs ${color}`}>
+      <Icon className={`w-3 h-3 ${animate ? 'animate-spin' : ''}`} />
+      {label}
+    </span>
+  );
+}
+
 export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps) {
   const posState = useSelector((state: RootState) => state.pos);
   const orderId = posState.currentOrder?.id || null;
 
-  // Fetch order calculation from backend
+  // Fetch order calculation from backend (source of truth for totals)
   const { data: calculation, isLoading: calculationLoading } = useOrderCalculation(orderId);
-  const { data: orderWithItems } = useOrderWithItems(orderId);
 
-  // Mutations
-  const updateItemMutation = useUpdateOrderItem(orderId);
-  const removeItemMutation = useRemoveOrderItem(orderId);
+  // Optimistic mutations
+  const updateCartItemMutation = useUpdateCartItem();
+  const removeFromCartMutation = useRemoveFromCart();
   const applyDiscountMutation = useApplyDiscount(orderId);
   const removeDiscountMutation = useRemoveDiscount(orderId);
 
-  // Local state for removing animation
-  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+  // Get synced cart items from Redux
+  const syncedItems = posState.syncedCartItems;
+  const syncStatus = posState.syncStatus;
 
-  const itemCount = orderWithItems?.items.length || 0;
-  const hasDiscount = calculation?.appliedDiscountId != null;
-  const items = orderWithItems?.items || [];
+  // Use backend data if available, fallback to synced cart
+  const items = syncedItems.length > 0 ? syncedItems : [];
+  const itemCount = items.length;
+
+  // Calculate local subtotal (for immediate display)
+  const localSubtotal = items.reduce((sum, item) => sum + Number(item.itemTotal), 0);
 
   // Handle quantity update
-  const handleQuantityChange = async (itemId: string, newQuantity: number) => {
+  const handleQuantityChange = async (tempId: string, serverId: string | undefined, newQuantity: number) => {
     if (newQuantity < 1) return;
     try {
-      await updateItemMutation.mutateAsync({
-        itemId,
-        payload: { quantity: newQuantity },
+      await updateCartItemMutation.mutateAsync({
+        tempId,
+        serverId,
+        quantity: newQuantity,
       });
     } catch (error) {
       console.error('Failed to update quantity:', error);
@@ -46,28 +71,31 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
   };
 
   // Handle remove item
-  const handleRemoveItem = async (itemId: string) => {
-    setRemovingItemId(itemId);
+  const handleRemoveItem = async (tempId: string, serverId: string | undefined) => {
     try {
-      await removeItemMutation.mutateAsync(itemId);
+      await removeFromCartMutation.mutateAsync({
+        tempId,
+        serverId,
+      });
     } catch (error) {
       console.error('Failed to remove item:', error);
-    } finally {
-      setRemovingItemId(null);
     }
   };
 
   // Handle apply discount
   const handleApplyDiscount = (discount: Discount) => {
+    if (!orderId) return;
     applyDiscountMutation.mutate(discount.id);
   };
 
   // Handle remove discount
   const handleRemoveDiscount = () => {
+    if (!orderId) return;
     removeDiscountMutation.mutate();
   };
 
-  if (!orderId) {
+  // Empty state - no order yet
+  if (!orderId && syncedItems.length === 0) {
     return (
       <div className="h-full flex flex-col">
         <div className="px-4 py-4 border-b border-slate-100">
@@ -82,23 +110,38 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
               <ShoppingCart className="w-8 h-8 text-slate-300" />
             </div>
             <p className="text-sm text-slate-500">Order belum dibuat</p>
+            <p className="text-xs text-slate-400 mt-1">Pilih menu untuk memulai</p>
           </div>
         </div>
       </div>
     );
   }
 
+  // Use local calculation for immediate display (optimistic)
+  // Backend calculation is source of truth for discount/tax but may be stale for subtotal
+  const displaySubtotal = localSubtotal;
+  const hasDiscountApplied = calculation?.appliedDiscountId != null;
+  const discountAmount = calculation?.orderDiscountAmount ?? 0;
+  const taxAmount = calculation?.taxAmount ?? 0;
+  const displayTotal = localSubtotal - discountAmount + taxAmount;
+
   return (
     <div className="h-full flex flex-col bg-white">
       {/* Header */}
       <div className="px-4 py-4 border-b border-slate-100">
-        <h2 className="font-bold text-slate-900 flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5" />
-          Ringkasan Order
-        </h2>
-        <p className="text-xs text-slate-500 mt-1">
-          {itemCount} item • {orderWithItems?.order?.orderNumber || 'Loading...'}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-bold text-slate-900 flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5" />
+              Ringkasan Order
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {itemCount} item • {posState.currentOrder?.orderNumber || 'Draft'}
+            </p>
+          </div>
+          {/* Sync Status */}
+          <SyncStatusBadge status={syncStatus} />
+        </div>
       </div>
 
       {/* Cart Items List */}
@@ -117,32 +160,37 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
           <div className="p-3 space-y-2">
             {items.map((item) => (
               <div
-                key={item.id}
+                key={item.tempId}
                 className="bg-slate-50 rounded-xl p-3 border border-slate-100"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
-                      {item.productName || item.variantName || 'Item'}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {item.productName || item.variantName || 'Item'}
+                      </p>
+                      {item.syncStatus !== 'synced' && (
+                        <SyncStatusBadge status={item.syncStatus} />
+                      )}
+                    </div>
                     {item.modifiers && item.modifiers.length > 0 && (
                       <p className="text-xs text-blue-600 truncate">
-                        {item.modifiers.map(m => m.modifierName).join(', ')}
+                        {item.modifiers.map(m => m.name).join(', ')}
                       </p>
                     )}
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Rp {Number(item.unitPrice).toLocaleString('id-ID')}
+                      Rp {Number(item.basePrice).toLocaleString('id-ID')}
                     </p>
                   </div>
 
                   {/* Remove Button */}
                   <button
-                    onClick={() => handleRemoveItem(item.id)}
-                    disabled={removingItemId === item.id || removeItemMutation.isPending}
+                    onClick={() => handleRemoveItem(item.tempId, item.serverId)}
+                    disabled={removeFromCartMutation.isPending}
                     className="p-1 hover:bg-red-50 rounded text-red-500 disabled:opacity-40 flex-shrink-0"
                     title="Hapus item"
                   >
-                    {removingItemId === item.id ? (
+                    {removeFromCartMutation.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Trash2 className="w-4 h-4" />
@@ -154,8 +202,8 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-0.5">
                     <button
-                      onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                      disabled={item.quantity <= 1 || updateItemMutation.isPending}
+                      onClick={() => handleQuantityChange(item.tempId, item.serverId, item.quantity - 1)}
+                      disabled={item.quantity <= 1 || updateCartItemMutation.isPending}
                       className="p-1 hover:bg-slate-100 rounded disabled:opacity-40"
                     >
                       <MinusCircle className="w-4 h-4 text-slate-600" />
@@ -164,8 +212,8 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                      disabled={updateItemMutation.isPending}
+                      onClick={() => handleQuantityChange(item.tempId, item.serverId, item.quantity + 1)}
+                      disabled={updateCartItemMutation.isPending}
                       className="p-1 hover:bg-slate-100 rounded disabled:opacity-40"
                     >
                       <PlusCircle className="w-4 h-4 text-slate-600" />
@@ -173,7 +221,7 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
                   </div>
 
                   <p className="text-sm font-semibold text-slate-900">
-                    Rp {Number(item.subtotal).toLocaleString('id-ID')}
+                    Rp {Number(item.itemTotal).toLocaleString('id-ID')}
                   </p>
                 </div>
               </div>
@@ -184,7 +232,7 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
 
       {/* Calculation Summary */}
       <div className="border-t border-slate-200">
-        {calculationLoading ? (
+        {calculationLoading && syncedItems.length === 0 ? (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
           </div>
@@ -194,7 +242,7 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
             <div className="px-4 py-2 flex justify-between text-sm">
               <span className="text-slate-600">Subtotal</span>
               <span className="text-slate-900 font-medium">
-                Rp {(calculation?.subtotal || 0).toLocaleString('id-ID')}
+                Rp {displaySubtotal.toLocaleString('id-ID')}
               </span>
             </div>
 
@@ -207,7 +255,7 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
             )}
 
             {/* Order Discount */}
-            {hasDiscount && (
+            {hasDiscountApplied && (
               <div className="px-4 py-1 flex justify-between text-sm text-green-600">
                 <span className="flex items-center gap-1">
                   <Tag className="w-3 h-3" />
@@ -219,7 +267,7 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
 
             {/* Discount Section */}
             <div className="px-4 py-2">
-              {hasDiscount ? (
+              {hasDiscountApplied ? (
                 <div className="flex items-center justify-between">
                   <Badge variant="success" className="flex items-center gap-1">
                     <Percent className="w-3 h-3" />
@@ -259,7 +307,7 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
               <div className="flex justify-between items-center">
                 <span className="text-base font-semibold text-slate-900">Total</span>
                 <span className="text-xl font-bold text-amber-600">
-                  Rp {(calculation?.totalAmount || 0).toLocaleString('id-ID')}
+                  Rp {displayTotal.toLocaleString('id-ID')}
                 </span>
               </div>
             </div>
@@ -268,8 +316,8 @@ export function OrderSummary({ onCheckout, onApplyDiscount }: OrderSummaryProps)
       </div>
 
       {/* Footer - Checkout Button */}
-      {itemCount > 0 && (
-        <div className="p-4 border-t border-slate-100 bg-slate-50">
+      {itemCount > 0 && orderId && (
+        <div className="p-4 border-t border-t-slate-100 bg-slate-50">
           <Button
             className="w-full"
             size="lg"

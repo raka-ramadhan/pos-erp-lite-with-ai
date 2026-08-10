@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
@@ -53,16 +53,28 @@ export function OrderSessionPage() {
   const navigate = useNavigate();
   const posState = useSelector((state: RootState) => state.pos);
 
+  // Redirect if orderId is undefined or 'draft' - order not created yet
+  useEffect(() => {
+    if (!orderId || orderId === 'draft') {
+      navigate('/pos/products');
+    }
+  }, [orderId, navigate]);
+
+  // If no valid orderId, don't render
+  if (!orderId || orderId === 'draft') {
+    return null;
+  }
+
   // Fetch order with items from backend
-  const { data: orderWithItems, isLoading, error, refetch } = useOrderWithItems(orderId!);
+  const { data: orderWithItems, isLoading, error, refetch } = useOrderWithItems(orderId);
 
   // Fetch calculation from backend (single source of truth)
-  const { data: calculation } = useOrderCalculation(orderId!);
+  const { data: calculation } = useOrderCalculation(orderId);
 
   // Mutations
-  const updateItemMutation = useUpdateOrderItem(orderId!);
-  const updateNotesMutation = useUpdateOrderItemNotes(orderId!);
-  const removeItemMutation = useRemoveOrderItem(orderId!);
+  const updateItemMutation = useUpdateOrderItem(orderId);
+  const updateNotesMutation = useUpdateOrderItemNotes(orderId);
+  const removeItemMutation = useRemoveOrderItem(orderId);
 
   // Local state for notes editing
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);

@@ -12,3 +12,9 @@ export * from './usePayment';
 export * from './useOrders';
 export * from './useOrderItems';
 export * from './useCalculation';
+
+// Hybrid cart hooks
+export * from './useInitializeCart';
+export * from './useAddToCart';
+export * from './useUpdateCartItem';
+export * from './useRemoveFromCart';

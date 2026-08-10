@@ -22,7 +22,15 @@ import { ModifierModal, type SelectedModifierPayload } from '../../components/po
 import { OrderSummary } from '../../components/pos/cart/OrderSummary';
 import { DiscountPickerModal } from '../../components/pos/cart/DiscountPickerModal';
 import type { RootState } from '../../store';
-import { useProducts, useCategories, useProductWithModifiers, useAddOrderItem, useOrderWithItems, useOrderCalculation } from '../../hooks';
+import {
+  useProducts,
+  useCategories,
+  useProductWithModifiers,
+  useAddToCart,
+  useOrderWithItems,
+  useOrderCalculation,
+  useInitializeCart,
+} from '../../hooks';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { cn } from '../../utils';
 import { OrderType } from '../../types';
@@ -35,6 +43,9 @@ export function ProductsPage() {
   useDocumentTitle('Pilih Menu - POS');
   const navigate = useNavigate();
   const posState = useSelector((state: RootState) => state.pos);
+
+  // Initialize cart from localStorage and sync with server
+  useInitializeCart();
 
   // Local state
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,10 +62,10 @@ export function ProductsPage() {
   // Fetch product with modifiers for the modal
   const { data: productWithModifiers } = useProductWithModifiers(modifierProductId || '');
 
-  // Add order item mutation
-  const addOrderItemMutation = useAddOrderItem(posState.currentOrder?.id || null);
+  // Optimistic add to cart
+  const addToCartMutation = useAddToCart();
 
-  // Fetch order with items for cart preview
+  // Fetch order with items for cart preview (backend data)
   const { data: orderWithItems } = useOrderWithItems(posState.currentOrder?.id || null);
 
   // Fetch order calculation for discount picker
@@ -116,11 +127,6 @@ export function ProductsPage() {
   // Handle product click
   const handleProductClick = useCallback(
     async (product: Product) => {
-      // Check if order exists
-      if (!posState.currentOrder?.id) {
-        return;
-      }
-
       // If product has variants (modifiers), open the modifier modal
       if (product.hasVariants) {
         setModifierProductId(product.id);
@@ -128,13 +134,15 @@ export function ProductsPage() {
         return;
       }
 
-      // Add to backend order directly (no modifiers)
+      // Optimistic add to cart (creates order if needed)
       setAddedProductId(product.id);
       try {
-        await addOrderItemMutation.mutateAsync({
+        await addToCartMutation.mutateAsync({
           productId: product.id,
+          productName: product.name,
+          basePrice: product.price,
           quantity: 1,
-          unitPrice: product.price,
+          modifiers: [],
         });
       } catch (error) {
         console.error('Failed to add item:', error);
@@ -142,7 +150,7 @@ export function ProductsPage() {
         setAddedProductId(null);
       }
     },
-    [posState.currentOrder?.id, addOrderItemMutation]
+    [addToCartMutation]
   );
 
   // Handle add to order from modifier modal
@@ -153,15 +161,20 @@ export function ProductsPage() {
       unitPrice: number,
       modifiers: SelectedModifierPayload[]
     ) => {
-      if (!posState.currentOrder?.id) return;
-
       setAddedProductId(productId);
       try {
-        await addOrderItemMutation.mutateAsync({
+        await addToCartMutation.mutateAsync({
           productId,
+          productName: '', // Will be filled from product data
+          basePrice: unitPrice,
           quantity,
-          unitPrice,
-          modifiers: modifiers.length > 0 ? modifiers : undefined,
+          modifiers: modifiers.map((m) => ({
+            id: m.modifierId,
+            name: m.modifierName,
+            additionalPrice: m.unitPrice,
+            groupId: m.groupId || '',
+            groupName: m.groupName || '',
+          })),
         });
         setIsModifierModalOpen(false);
         setModifierProductId(null);
@@ -171,7 +184,7 @@ export function ProductsPage() {
         setAddedProductId(null);
       }
     },
-    [posState.currentOrder?.id, addOrderItemMutation]
+    [addToCartMutation]
   );
 
   // Get order type label and icon
@@ -194,9 +207,12 @@ export function ProductsPage() {
   const orderTypeInfo = getOrderTypeInfo();
   const OrderIcon = orderTypeInfo.icon;
 
-  // Cart totals from backend
-  const cartItemCount = orderWithItems?.items.length || 0;
-  const cartSubtotal = orderWithItems?.order?.subtotal || 0;
+  // Cart totals - use synced cart for immediate feedback, fallback to backend
+  const syncedItems = posState.syncedCartItems;
+  const cartItemCount = syncedItems.length > 0 ? syncedItems.length : (orderWithItems?.items.length || 0);
+  const cartSubtotal = syncedItems.length > 0
+    ? syncedItems.reduce((sum, item) => sum + Number(item.itemTotal), 0)
+    : (orderWithItems?.order?.subtotal || 0);
 
   return (
     <div className="min-h-full flex flex-col bg-slate-50">
@@ -219,17 +235,22 @@ export function ProductsPage() {
 
             {/* Cart Summary */}
             <button
-              onClick={() => navigate(`/pos/orders/${posState.currentOrder?.id}`)}
+              onClick={() => {
+                if (posState.currentOrder?.id) {
+                  navigate(`/pos/orders/${posState.currentOrder.id}`);
+                }
+              }}
+              disabled={!posState.currentOrder?.id}
               className={cn(
                 'flex items-center gap-2 px-3 py-2 rounded-xl transition-all',
-                cartItemCount > 0
-                  ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                cartItemCount > 0 && posState.currentOrder?.id
+                  ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer'
+                  : 'bg-slate-100 text-slate-600 cursor-not-allowed'
               )}
             >
               <ShoppingCart className="w-5 h-5" />
               <span className="font-medium">{cartItemCount}</span>
-              {cartItemCount > 0 && (
+              {cartItemCount > 0 && posState.currentOrder?.id && (
                 <>
                   <span className="text-slate-400">•</span>
                   <span className="text-sm">

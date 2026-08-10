@@ -58,6 +58,14 @@ const ordersApi = {
     });
     return response.data.data;
   },
+
+  cancel: async (id: string, reason?: string): Promise<{ message: string }> => {
+    const response = await apiClient.delete<ApiResponse<{ message: string }>>(
+      `/orders/${id}/cancel`,
+      { data: { reason } }
+    );
+    return response.data.data;
+  },
 };
 
 export default ordersApi;

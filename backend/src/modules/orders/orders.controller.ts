@@ -199,4 +199,17 @@ export class OrdersController {
   removeDiscount(@Param('id') orderId: string) {
     return this.ordersService.removeDiscount(orderId);
   }
+
+  /**
+   * Cancel order (soft delete)
+   * Used when user cancels or abandons the order
+   */
+  @Delete(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancelOrder(
+    @Param('id') orderId: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.ordersService.cancelOrder(orderId, body.reason || 'Cancelled by user');
+  }
 }
