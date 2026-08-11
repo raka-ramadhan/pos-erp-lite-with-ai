@@ -12,7 +12,6 @@ import {
 import { Button } from '../../components/ui';
 import { Badge } from '../../components/ui';
 import { Card } from '../../components/ui';
-import { Spinner } from '../../components/ui';
 import { useTransactionDetail } from '../../hooks';
 import { ReceiptPreview } from '../../components/pos/history/ReceiptPreview';
 

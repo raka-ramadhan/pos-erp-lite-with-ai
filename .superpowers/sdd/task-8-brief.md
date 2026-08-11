@@ -1,53 +1,51 @@
-# Task 8: Verify Complete Flow
+# Task 8: Frontend — Transactions Hook
 
-## Description
+## Goal
+Create React Query hooks for fetching transactions.
 
-Manual testing task to verify the complete table occupancy and cancel order flow works correctly.
+## File to Create
+- `pos-cashier/src/hooks/useTransactions.ts`
 
-## Test Scenarios
+## Hooks Required
 
-### Test Scenario 1: New Order Flow
-1. Login as cashier
-2. Select Dine In
-3. Select AVAILABLE table (e.g., A02)
-4. Verify order created with tableId
-5. Verify table shows as OCCUPIED
-6. Navigate to products page
-7. Verify order is active
+```typescript
+// List transactions with filters
+export function useTransactions(params?: TransactionListParams) {
+  return useQuery({
+    queryKey: ['transactions', 'list', params],
+    queryFn: () => transactionsApi.getList(params),
+    staleTime: 30 * 1000, // 30 seconds
+  });
+}
 
-### Test Scenario 2: Open Existing Order
-1. From TablesPage, tap OCCUPIED table (e.g., A01)
-2. Verify navigates to OrderSessionPage
-3. Verify all items/modifiers/discount loaded
-4. Verify table name is shown
+// Get single transaction detail
+export function useTransactionDetail(id: string) {
+  return useQuery({
+    queryKey: ['transactions', 'detail', id],
+    queryFn: () => transactionsApi.getById(id),
+    enabled: !!id,
+  });
+}
 
-### Test Scenario 3: Cancel Order
-1. Open existing order
-2. Click "Batal" button
-3. Verify CancelOrderModal appears
-4. Enter cancellation reason
-5. Click "Batalkan Order"
-6. Verify order cancelled
-7. Verify table now AVAILABLE
-8. Verify redirected to POS home
+// Get receipt data
+export function useReceipt(id: string) {
+  return useQuery({
+    queryKey: ['transactions', 'receipt', id],
+    queryFn: () => transactionsApi.getReceipt(id),
+    enabled: !!id,
+  });
+}
+```
 
-### Test Scenario 4: Double Booking Prevention
-1. Open two browsers/incognito windows
-2. Cashier A selects AVAILABLE table
-3. While A's request is processing, Cashier B tries to select SAME table
-4. Cashier B should see error message: "Meja sudah digunakan cashier lain"
-
-## Expected Results
-
-| Scenario | Expected Result |
-|----------|----------------|
-| New Order | Order created, table shows OCCUPIED |
-| Open Existing | Order details loaded, navigate to session |
-| Cancel Order | Order CANCELLED, table AVAILABLE |
-| Double Booking | Second cashier gets conflict error |
+## Global Constraints
+- Follow existing hook patterns in: pos-cashier/src/hooks/
+- Use @tanstack/react-query
+- Import from '../api/transactions'
 
 ## Steps
-1. Run backend and frontend
-2. Execute test scenarios
-3. Document any issues
-4. Mark task complete if all tests pass
+1. Create useTransactions.ts with 3 hooks
+2. Export all hooks
+3. Commit
+
+## Report Contract
+Write report to: /var/www/html/pos-porfolio/.superpowers/sdd/task-8-report.md

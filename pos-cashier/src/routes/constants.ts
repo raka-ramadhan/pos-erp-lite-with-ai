@@ -3,7 +3,9 @@ export const ROUTES = {
   FORBIDDEN: '/forbidden',
   POS: '/pos',
   POS_HISTORY: '/pos/history',
-  POS_TRANSACTION_DETAIL: (id: string) => `/pos/history/${id}`,
 } as const;
+
+// Transaction detail route helper - export separately to avoid type issues
+export const getTransactionDetailRoute = (id: string) => `/pos/history/${id}`;
 
 export type RoutePath = typeof ROUTES[keyof typeof ROUTES];

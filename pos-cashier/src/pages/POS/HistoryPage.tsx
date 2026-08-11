@@ -8,7 +8,7 @@ import { Button } from '../../components/ui';
 import { Spinner } from '../../components/ui';
 import { Badge } from '../../components/ui';
 import { Card, CardBody } from '../../components/ui';
-import { POS_TRANSACTION_DETAIL } from '../../routes/constants';
+import { getTransactionDetailRoute } from '../../routes/constants';
 
 type DateFilter = 'today' | 'yesterday' | 'this_week' | 'this_month';
 
@@ -60,7 +60,7 @@ function formatDateTime(dateString: string): string {
   return format(date, "dd MMM yyyy • HH:mm", { locale: id });
 }
 
-function getOrderTypeBadge(orderType: string): { variant: 'success' | 'warning' | 'info'; label: string } {
+function getOrderTypeBadge(orderType: string): { variant: 'success' | 'warning' | 'info' | 'default'; label: string } {
   switch (orderType) {
     case 'dine_in':
       return { variant: 'success', label: 'Dine In' };
@@ -73,7 +73,7 @@ function getOrderTypeBadge(orderType: string): { variant: 'success' | 'warning' 
   }
 }
 
-function getPaymentBadge(paymentMethod: string | null): { variant: 'success' | 'warning' | 'info' | 'default'; label: string } {
+function getPaymentBadge(paymentMethod?: string | null): { variant: 'success' | 'warning' | 'info' | 'default'; label: string } {
   if (!paymentMethod) {
     return { variant: 'default', label: '-' };
   }
@@ -127,7 +127,7 @@ export function HistoryPage() {
 
   // Handle row click
   const handleRowClick = useCallback((transactionId: string) => {
-    navigate(POS_TRANSACTION_DETAIL(transactionId));
+    navigate(getTransactionDetailRoute(transactionId));
   }, [navigate]);
 
   // Pagination handlers

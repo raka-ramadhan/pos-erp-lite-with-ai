@@ -1,9 +1,10 @@
 import { cn } from '../../utils/cn';
-import type { ReactNode } from 'react';
+import type { ReactNode, MouseEventHandler } from 'react';
 
 interface CardProps {
   children: ReactNode;
   className?: string;
+  onClick?: MouseEventHandler<HTMLDivElement>;
 }
 
 interface CardHeaderProps {
@@ -16,9 +17,12 @@ interface CardBodyProps {
   className?: string;
 }
 
-function Card({ children, className }: CardProps) {
+function Card({ children, className, onClick }: CardProps) {
   return (
-    <div className={cn('bg-white rounded-2xl shadow-xl border border-slate-100', className)}>
+    <div
+      className={cn('bg-white rounded-2xl shadow-xl border border-slate-100', className)}
+      onClick={onClick}
+    >
       {children}
     </div>
   );

@@ -1,44 +1,57 @@
-# Task 6 Report: CancelOrderModal Component
+# Task 6 Report: Backend Snapshot Integration
 
-## Status: DONE
+## Status: ✅ COMPLETED
 
 ## Summary
-Created the CancelOrderModal component for the POS frontend - a confirmation dialog that requires a reason for order cancellation.
+Integrated EventEmitter pattern to automatically create transaction snapshots when payments are completed, decoupling PaymentsModule from TransactionsModule.
 
-## Files Created
-- `pos-cashier/src/components/pos/cart/CancelOrderModal.tsx`
+## Changes Made
 
-## Commit
-```
-d635fa9 - feat(pos): add CancelOrderModal component
-```
+### 1. Package Installation
+- Installed `@nestjs/event-emitter` and `eventemitter2`
 
-## Build Result
-TypeScript compilation: **PASSED** (no errors)
+### 2. AppModule (`backend/src/app.module.ts`)
+- Added `EventEmitterModule` import from `@nestjs/event-emitter`
+- Configured with default settings via `EventEmitterModule.forRoot()`
 
-## Implementation Details
+### 3. PaymentsService (`backend/src/modules/payments/payments.service.ts`)
+- Injected `EventEmitter2` via constructor
+- Added `Logger` for logging
+- After successful payment and order completion (step 8), added event emission:
+  ```typescript
+  this.eventEmitter.emit('payment.completed', {
+    orderId: order.id,
+    paymentId: savedPayment.id,
+  });
+  ```
 
-### Props Interface
-```typescript
-interface CancelOrderModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (reason: string) => void;
-  orderNumber: string;
-  isLoading?: boolean;
-}
-```
+### 4. TransactionsService (`backend/src/modules/transactions/transactions.service.ts`)
+- Injected `EventEmitter2` via constructor
+- Added event listener in constructor for `'payment.completed'` event:
+  ```typescript
+  this.eventEmitter.on('payment.completed', async (data: { orderId: string; paymentId: string }) => {
+    try {
+      await this.createSnapshotFromOrder(data.orderId);
+    } catch (error) {
+      this.logger.error('Failed to create transaction snapshot', error);
+    }
+  });
+  ```
+- Error handling is graceful - failures are logged but don't affect the payment flow
 
-### Features
-- Red-themed header with AlertTriangle icon
-- Order number display
-- Required cancellation reason input field
-- Submit button disabled until reason is provided
-- Loading state support
-- Indonesian UI text
+## Architecture Benefits
+- **Decoupled modules**: PaymentsModule and TransactionsModule are independent
+- **Event-driven**: Snapshots are created asynchronously after payment completes
+- **Fault isolation**: Snapshot failures don't affect payment processing
+- **Follows NestJS best practices**: Uses official EventEmitterModule
 
-### Dependencies Used
-- `react` - useState hook
-- `lucide-react` - AlertTriangle icon
-- `../../ui` - Button and Input components
-- `../../../utils` - cn utility function
+## Verification
+- TypeScript compilation: ✅ Passed
+- Build: ✅ Successful
+- Git commit: ✅ Created (2009d6e)
+
+## Files Modified
+1. `backend/package.json` - Added dependencies
+2. `backend/src/app.module.ts` - Added EventEmitterModule
+3. `backend/src/modules/payments/payments.service.ts` - Added event emission
+4. `backend/src/modules/transactions/transactions.service.ts` - Added event listener
