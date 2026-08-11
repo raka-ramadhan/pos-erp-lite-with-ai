@@ -10,6 +10,7 @@ import { Order } from '../orders/entities/order.entity';
 import { OrderItem } from '../orders/entities/order-item.entity';
 import { OrderItemModifier } from '../orders/entities/order-item-modifier.entity';
 import { Payment } from '../payments/entities/payment.entity';
+import { PaymentMethod } from '../payment-methods/entities/payment-method.entity';
 import { Discount } from '../discounts/entities/discount.entity';
 import { Tax } from '../taxes/entities/tax.entity';
 import { User } from '../auth/entities/user.entity';
@@ -25,6 +26,7 @@ import { User } from '../auth/entities/user.entity';
       OrderItem,
       OrderItemModifier,
       Payment,
+      PaymentMethod,
       Discount,
       Tax,
       User,
