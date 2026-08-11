@@ -217,7 +217,7 @@ export function HistoryPage() {
         )}
 
         {/* Empty State */}
-        {!isLoading && !isError && data && data.data.length === 0 && (
+        {!isLoading && !isError && data?.data && data.data.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
               <Search className="w-8 h-8 text-slate-400" />
@@ -230,7 +230,7 @@ export function HistoryPage() {
         )}
 
         {/* Transaction List */}
-        {!isLoading && !isError && data && data.data.length > 0 && (
+        {!isLoading && !isError && data?.data && data.data.length > 0 && (
           <div className="space-y-3">
             {data.data.map((transaction) => {
               const orderTypeBadge = getOrderTypeBadge(transaction.orderType);
