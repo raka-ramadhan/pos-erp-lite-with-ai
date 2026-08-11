@@ -10,6 +10,7 @@ import { TablesPage } from '../pages/POS/TablesPage';
 import { ProductsPage } from '../pages/POS/ProductsPage';
 import { OrderSessionPage } from '../pages/POS/OrderSessionPage';
 import { PaymentPage } from '../pages/POS/PaymentPage';
+import { HistoryPage } from '../pages/POS/HistoryPage';
 import { useEffect } from 'react';
 import { useRefreshProfile } from '../hooks';
 import { APP_PERMISSIONS } from '../types';
@@ -70,6 +71,26 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <ForbiddenPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* POS History - Standalone page */}
+      <Route
+        path="/pos/history"
+        element={
+          <ProtectedRoute>
+            <HistoryPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* POS Transaction Detail - Standalone page */}
+      <Route
+        path="/pos/history/:transactionId"
+        element={
+          <ProtectedRoute>
+            <HistoryPage />
           </ProtectedRoute>
         }
       />
