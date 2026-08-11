@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, IsNull } from 'typeorm';
@@ -324,58 +325,58 @@ export class OrdersService {
   /**
    * Assign a table to an order
    * Used when selecting a table for dine-in order
+   * Uses pessimistic locking to prevent race conditions when multiple cashiers
+   * try to select the same table simultaneously
    */
   async assignTable(orderId: string, tableId: string): Promise<Order> {
-    const order = await this.findOne(orderId);
+    return this.dataSource.transaction(async (manager) => {
+      // 1. Lock and fetch the order
+      const order = await manager.findOne(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    // Business validation: Cannot modify completed or cancelled orders
-    if (
-      order.orderStatus === OrderStatus.COMPLETED ||
-      order.orderStatus === OrderStatus.CANCELLED
-    ) {
-      throw new BadRequestException(
-        'Cannot assign table to completed or cancelled orders',
-      );
-    }
+      if (!order) {
+        throw new NotFoundException(`Order with ID ${orderId} not found`);
+      }
 
-    // Business validation: Order must be dine_in type
-    if (order.orderType !== OrderType.DINE_IN) {
-      throw new BadRequestException(
-        'Table assignment is only allowed for Dine-In orders',
-      );
-    }
+      // 2. Validate order status
+      if (
+        order.orderStatus === OrderStatus.COMPLETED ||
+        order.orderStatus === OrderStatus.CANCELLED
+      ) {
+        throw new BadRequestException(
+          'Cannot assign table to completed or cancelled orders',
+        );
+      }
 
-    // Check if table already has an active order (excluding current order)
-    const existingOrder = await this.orderRepository.findOne({
-      where: {
-        tableId,
-        orderStatus: OrderStatus.OPEN,
-      },
+      // Business validation: Order must be dine_in type
+      if (order.orderType !== OrderType.DINE_IN) {
+        throw new BadRequestException(
+          'Table assignment is only allowed for Dine-In orders',
+        );
+      }
+
+      // 3. Check new table availability (with lock)
+      const existingOrder = await manager
+        .createQueryBuilder(Order, 'order')
+        .setLock('pessimistic_write')
+        .where('order.tableId = :tableId', { tableId })
+        .andWhere('order.orderStatus IN (:...statuses)', {
+          statuses: [OrderStatus.OPEN, OrderStatus.IN_PROGRESS],
+        })
+        .getOne();
+
+      if (existingOrder && existingOrder.id !== orderId) {
+        throw new ConflictException(
+          `Table is already occupied by order ${existingOrder.orderNumber}`,
+        );
+      }
+
+      // 4. Update order
+      order.tableId = tableId;
+      return manager.save(order);
     });
-
-    // Also check in_progress status
-    const existingOrderInProgress = await this.orderRepository.findOne({
-      where: {
-        tableId,
-        orderStatus: OrderStatus.IN_PROGRESS,
-      },
-    });
-
-    if (existingOrder && existingOrder.id !== orderId) {
-      throw new BadRequestException(
-        `Table is already occupied by order ${existingOrder.orderNumber}`,
-      );
-    }
-
-    if (existingOrderInProgress && existingOrderInProgress.id !== orderId) {
-      throw new BadRequestException(
-        `Table is already occupied by order ${existingOrderInProgress.orderNumber}`,
-      );
-    }
-
-    // Assign table
-    order.tableId = tableId;
-    return this.orderRepository.save(order);
   }
 
   /**
@@ -473,17 +474,9 @@ export class OrdersService {
       );
     }
 
-    // Calculate modifier total
-    let modifierTotal = 0;
-    if (createDto.modifiers && createDto.modifiers.length > 0) {
-      modifierTotal = createDto.modifiers.reduce(
-        (sum, mod) => sum + (mod.unitPrice * mod.quantity),
-        0,
-      );
-    }
-
-    // Calculate subtotal: (basePrice + modifierTotal) * quantity
-    const itemSubtotal = (createDto.unitPrice + modifierTotal) * createDto.quantity;
+    // Calculate subtotal: unitPrice from frontend already includes base + modifier prices
+    // DO NOT add modifierTotal again - that would cause double-counting
+    const itemSubtotal = createDto.unitPrice * createDto.quantity;
 
     // Get next sort order
     const maxSortOrder = await this.orderItemRepository
