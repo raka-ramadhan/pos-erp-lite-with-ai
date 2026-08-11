@@ -31,6 +31,19 @@ export interface Order {
   createdAt: string;
 }
 
+export interface OrderCalculation {
+  subtotal: number;
+  productDiscountTotal: number;
+  subtotalAfterProductDiscount: number;
+  orderDiscountAmount: number;
+  subtotalAfterDiscount: number;
+  serviceChargeAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  appliedDiscountId: string | null;
+  appliedDiscountName: string | null;
+}
+
 const ordersApi = {
   create: async (payload: CreateOrderPayload): Promise<Order> => {
     const response = await apiClient.post<ApiResponse<Order>>('/orders', payload);
@@ -65,6 +78,42 @@ const ordersApi = {
       { data: { reason } }
     );
     return response.data.data;
+  },
+
+  getCalculation: async (orderId: string): Promise<OrderCalculation> => {
+    const response = await apiClient.get<ApiResponse<OrderCalculation>>(
+      `/orders/${orderId}/calculation`
+    );
+    return response.data.data;
+  },
+
+  applyDiscount: async (orderId: string, discountId: string): Promise<Order> => {
+    const response = await apiClient.post<ApiResponse<Order>>(
+      `/orders/${orderId}/discount`,
+      { discountId }
+    );
+    return response.data.data;
+  },
+
+  removeDiscount: async (orderId: string): Promise<Order> => {
+    const response = await apiClient.delete<ApiResponse<Order>>(
+      `/orders/${orderId}/discount`
+    );
+    return response.data.data;
+  },
+
+  // Create order with table assignment atomically
+  createOrderWithTable: async (payload: CreateOrderPayload): Promise<Order> => {
+    // First create the order
+    const order = await apiClient.post<ApiResponse<Order>>('/orders', payload);
+
+    // Then assign the table using the dedicated endpoint
+    const orderWithTable = await apiClient.patch<ApiResponse<Order>>(
+      `/orders/${order.data.data.id}/assign-table`,
+      { tableId: payload.tableId }
+    );
+
+    return orderWithTable.data.data;
   },
 };
 

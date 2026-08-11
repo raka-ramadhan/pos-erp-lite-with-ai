@@ -16,7 +16,7 @@ import {
   ArrowRightLeft,
 } from 'lucide-react';
 import { usePOSTables, useTableAreas, useCreateOrder, type POSTable, type ActiveOrderInfo } from '../../hooks';
-import { setSelectedTable } from '../../store/slices/posSlice';
+import { setSelectedTable, setCurrentOrder } from '../../store/slices/posSlice';
 import { Button } from '../../components/ui';
 import { cn } from '../../utils';
 import { TABLE_STATUS_CONFIG, type DiningTable, type TableStatus, OrderType } from '../../types';
@@ -63,6 +63,7 @@ export function TablesPage() {
   const createOrder = useCreateOrder();
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [changingTableId, setChangingTableId] = useState<string | null>(null);
+  const [creatingOrderForTable, setCreatingOrderForTable] = useState<string | null>(null);
 
   // Group tables by area
   const tablesByArea = tables?.reduce(
@@ -86,19 +87,30 @@ export function TablesPage() {
 
   // Handle AVAILABLE table selection
   const handleSelectAvailableTable = async (table: POSTable) => {
-    // Set selected table in Redux
-    dispatch(setSelectedTable(table));
-
-    // Create order for dine-in
     try {
-      await createOrder.mutateAsync({
-        orderType: 'dine_in' as const,
+      setCreatingOrderForTable(table.id);
+
+      const order = await ordersApi.createOrderWithTable({
+        orderType: 'dine_in',
         tableId: table.id,
         customerCount: 1,
       });
-      // Navigation happens in onSuccess callback
-    } catch (err) {
-      console.error('Failed to create order:', err);
+
+      dispatch(setCurrentOrder(order));
+      dispatch(setSelectedTable(table));
+      navigate('/pos/products');
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || err?.message;
+
+      if (errorMessage?.includes('already occupied')) {
+        alert('Meja sudah digunakan cashier lain. Silakan pilih meja lain.');
+        refetch();
+      } else {
+        console.error('Failed to create order:', err);
+        alert('Gagal membuat order. Silakan coba lagi.');
+      }
+    } finally {
+      setCreatingOrderForTable(null);
     }
   };
 
@@ -248,7 +260,7 @@ export function TablesPage() {
                 const statusConfig = TABLE_STATUS_CONFIG[table.status];
                 const isAvailable = table.status === 'available';
                 const isOccupied = table.status === 'occupied';
-                const isLoading = createOrder.isPending;
+                const isLoading = creatingOrderForTable === table.id;
 
                 return (
                   <motion.button
