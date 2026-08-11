@@ -12,10 +12,8 @@ import {
   Settings2,
   X,
   Loader2,
-  AlertCircle,
   ShoppingBag,
   Plus,
-  ChevronRight,
 } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { ModifierModal, type SelectedModifierPayload } from '../../components/pos/modifiers/ModifierModal';
@@ -26,15 +24,12 @@ import {
   useProducts,
   useCategories,
   useProductWithModifiers,
-  useAddToCart,
-  useOrderWithItems,
-  useOrderCalculation,
-  useInitializeCart,
+  useSimpleCart,
 } from '../../hooks';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { cn } from '../../utils';
 import { OrderType } from '../../types';
-import type { Product, ProductWithModifiers } from '../../types';
+import type { Product } from '../../types';
 
 // Placeholder image
 const PLACEHOLDER_IMAGE = '/placeholder-food.png';
@@ -44,13 +39,18 @@ export function ProductsPage() {
   const navigate = useNavigate();
   const posState = useSelector((state: RootState) => state.pos);
 
-  // Initialize cart from localStorage and sync with server
-  useInitializeCart();
+  // Simple cart - data from backend only
+  const {
+    items,
+    calculation,
+    addItem,
+    isAddingItem,
+    orderId,
+  } = useSimpleCart();
 
   // Local state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [addedProductId, setAddedProductId] = useState<string | null>(null);
 
   // Modifier modal state
   const [modifierProductId, setModifierProductId] = useState<string | null>(null);
@@ -61,15 +61,6 @@ export function ProductsPage() {
 
   // Fetch product with modifiers for the modal
   const { data: productWithModifiers } = useProductWithModifiers(modifierProductId || '');
-
-  // Optimistic add to cart
-  const addToCartMutation = useAddToCart();
-
-  // Fetch order with items for cart preview (backend data)
-  const { data: orderWithItems } = useOrderWithItems(posState.currentOrder?.id || null);
-
-  // Fetch order calculation for discount picker
-  const { data: calculation } = useOrderCalculation(posState.currentOrder?.id || null);
 
   // Fetch categories (filtered to active only)
   const { data: categories = [], isLoading: categoriesLoading } = useCategories();
@@ -86,11 +77,11 @@ export function ProductsPage() {
     search: searchQuery || undefined,
   });
 
-  // Filter and sort products (frontend filtering - backend needs update for production)
+  // Filter and sort products
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    // Filter by search query (name or sku)
+    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       result = result.filter(
@@ -100,7 +91,7 @@ export function ProductsPage() {
       );
     }
 
-    // Filter by category (if selected)
+    // Filter by category
     if (selectedCategoryId) {
       result = result.filter((p) => p.category?.id === selectedCategoryId);
     }
@@ -124,33 +115,25 @@ export function ProductsPage() {
     }
   };
 
-  // Handle product click
+  // Handle product click - SIMPLE, direct to backend
   const handleProductClick = useCallback(
     async (product: Product) => {
-      // If product has variants (modifiers), open the modifier modal
+      // If product has variants, open modifier modal
       if (product.hasVariants) {
         setModifierProductId(product.id);
         setIsModifierModalOpen(true);
         return;
       }
 
-      // Optimistic add to cart (creates order if needed)
-      setAddedProductId(product.id);
-      try {
-        await addToCartMutation.mutateAsync({
-          productId: product.id,
-          productName: product.name,
-          basePrice: product.price,
-          quantity: 1,
-          modifiers: [],
-        });
-      } catch (error) {
-        console.error('Failed to add item:', error);
-      } finally {
-        setAddedProductId(null);
-      }
+      // Simple add to order - direct API call
+      addItem({
+        productId: product.id,
+        quantity: 1,
+        unitPrice: product.price,
+        modifiers: [],
+      });
     },
-    [addToCartMutation]
+    [addItem]
   );
 
   // Handle add to order from modifier modal
@@ -161,30 +144,32 @@ export function ProductsPage() {
       unitPrice: number,
       modifiers: SelectedModifierPayload[]
     ) => {
-      setAddedProductId(productId);
-      try {
-        await addToCartMutation.mutateAsync({
-          productId,
-          productName: '', // Will be filled from product data
-          basePrice: unitPrice,
-          quantity,
-          modifiers: modifiers.map((m) => ({
-            id: m.modifierId,
-            name: m.modifierName,
-            additionalPrice: m.unitPrice,
-            groupId: m.groupId || '',
-            groupName: m.groupName || '',
-          })),
-        });
-        setIsModifierModalOpen(false);
-        setModifierProductId(null);
-      } catch (error) {
-        console.error('Failed to add item with modifiers:', error);
-      } finally {
-        setAddedProductId(null);
-      }
+      // Build modifiers payload
+      const modifiersPayload = modifiers.map((m) => ({
+        modifierId: m.modifierId,
+        modifierName: m.modifierName,
+        quantity: 1,
+        unitPrice: m.unitPrice,
+      }));
+
+      // Generate variant name
+      const variantName = modifiers.length > 0
+        ? modifiers.map((m) => m.modifierName).join(', ')
+        : undefined;
+
+      // Simple add to order
+      addItem({
+        productId,
+        quantity,
+        unitPrice,
+        variantName,
+        modifiers: modifiersPayload,
+      });
+
+      setIsModifierModalOpen(false);
+      setModifierProductId(null);
     },
-    [addToCartMutation]
+    [addItem]
   );
 
   // Get order type label and icon
@@ -207,12 +192,9 @@ export function ProductsPage() {
   const orderTypeInfo = getOrderTypeInfo();
   const OrderIcon = orderTypeInfo.icon;
 
-  // Cart totals - use synced cart for immediate feedback, fallback to backend
-  const syncedItems = posState.syncedCartItems;
-  const cartItemCount = syncedItems.length > 0 ? syncedItems.length : (orderWithItems?.items.length || 0);
-  const cartSubtotal = syncedItems.length > 0
-    ? syncedItems.reduce((sum, item) => sum + Number(item.itemTotal), 0)
-    : (orderWithItems?.order?.subtotal || 0);
+  // Cart totals from backend calculation
+  const cartItemCount = items.length;
+  const cartSubtotal = calculation?.subtotal || 0;
 
   return (
     <div className="min-h-full flex flex-col bg-slate-50">
@@ -236,21 +218,21 @@ export function ProductsPage() {
             {/* Cart Summary */}
             <button
               onClick={() => {
-                if (posState.currentOrder?.id) {
-                  navigate(`/pos/orders/${posState.currentOrder.id}`);
+                if (orderId) {
+                  navigate(`/pos/orders/${orderId}`);
                 }
               }}
-              disabled={!posState.currentOrder?.id}
+              disabled={!orderId}
               className={cn(
                 'flex items-center gap-2 px-3 py-2 rounded-xl transition-all',
-                cartItemCount > 0 && posState.currentOrder?.id
+                cartItemCount > 0 && orderId
                   ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer'
                   : 'bg-slate-100 text-slate-600 cursor-not-allowed'
               )}
             >
               <ShoppingCart className="w-5 h-5" />
               <span className="font-medium">{cartItemCount}</span>
-              {cartItemCount > 0 && posState.currentOrder?.id && (
+              {cartItemCount > 0 && orderId && (
                 <>
                   <span className="text-slate-400">•</span>
                   <span className="text-sm">
@@ -372,7 +354,7 @@ export function ProductsPage() {
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.2, delay: index * 0.03 }}
                       onClick={() => handleProductClick(product)}
-                      disabled={addedProductId === product.id}
+                      disabled={isAddingItem}
                       className={cn(
                         'relative flex flex-col bg-white rounded-2xl overflow-hidden',
                         'border-2 transition-all duration-200',
@@ -380,7 +362,7 @@ export function ProductsPage() {
                         product.isAvailable
                           ? 'hover:border-amber-400 hover:shadow-lg hover:-translate-y-1 cursor-pointer'
                           : 'opacity-60 cursor-not-allowed',
-                        addedProductId === product.id && 'opacity-50 cursor-wait'
+                        isAddingItem && 'opacity-50 cursor-wait'
                       )}
                     >
                       {/* Featured Badge */}
@@ -424,13 +406,6 @@ export function ProductsPage() {
                             </span>
                           </div>
                         )}
-
-                        {/* Add Indicator */}
-                        {addedProductId === product.id && (
-                          <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center">
-                            <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
-                          </div>
-                        )}
                       </div>
 
                       {/* Product Info */}
@@ -466,7 +441,7 @@ export function ProductsPage() {
         {/* Right Panel - Order Summary */}
         <div className="hidden lg:block w-80 bg-white border-l border-slate-200 flex-shrink-0">
           <OrderSummary
-            onCheckout={() => navigate(`/pos/orders/${posState.currentOrder?.id}`)}
+            onCheckout={() => navigate(`/pos/orders/${orderId}/payment`)}
             onApplyDiscount={() => setIsDiscountModalOpen(true)}
           />
         </div>
@@ -481,15 +456,15 @@ export function ProductsPage() {
           setModifierProductId(null);
         }}
         onAddToOrder={handleAddToOrderWithModifiers}
-        isAdding={addedProductId !== null}
+        isAdding={isAddingItem}
       />
 
       {/* Discount Picker Modal */}
       <DiscountPickerModal
         isOpen={isDiscountModalOpen}
         onClose={() => setIsDiscountModalOpen(false)}
-        orderId={posState.currentOrder?.id || null}
-        currentSubtotal={calculation?.subtotal || orderWithItems?.order?.subtotal || 0}
+        orderId={orderId ?? null}
+        currentSubtotal={calculation?.subtotal || 0}
       />
     </div>
   );

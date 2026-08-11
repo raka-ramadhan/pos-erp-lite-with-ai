@@ -3,7 +3,7 @@ import { cn } from '../../utils/cn';
 import { Spinner } from './Spinner';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'link' | 'danger';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'link' | 'danger' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   leftIcon?: ReactNode;
@@ -33,6 +33,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 active:bg-slate-200',
       link: 'bg-transparent text-indigo-600 hover:text-indigo-700 hover:underline p-0',
       danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800',
+      outline: 'bg-white border-2 border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400 active:bg-slate-100',
     };
 
     const sizes = {

@@ -352,6 +352,10 @@ const posSlice = createSlice({
     ) => {
       const { productId, productName, basePrice, quantity, modifiers, notes, variantName } = action.payload;
 
+      // Validate basePrice is a valid number
+      const validBasePrice = Number(basePrice) || 0;
+      const validQuantity = Number(quantity) || 1;
+
       // Check if same product with same modifiers already exists
       const existingItem = state.syncedCartItems.find((item) => {
         if (item.productId !== productId) return false;
@@ -361,7 +365,7 @@ const posSlice = createSlice({
 
       if (existingItem) {
         // Update quantity (optimistic)
-        existingItem.quantity += quantity;
+        existingItem.quantity += validQuantity;
         existingItem.itemTotal = calculateCartItemTotal(
           existingItem.basePrice,
           existingItem.modifiers,
@@ -370,17 +374,17 @@ const posSlice = createSlice({
         existingItem.syncStatus = 'pending';
       } else {
         // Add new item (optimistic)
-        const modifierTotal = calculateModifierTotal(modifiers);
+        const modifierTotal = calculateModifierTotal(modifiers || []);
         const newItem: SyncedCartItem = {
           tempId: generateTempId(),
           productId,
           productName,
           variantName,
-          basePrice,
-          quantity,
-          modifiers,
+          basePrice: validBasePrice,
+          quantity: validQuantity,
+          modifiers: modifiers || [],
           notes: notes || '',
-          itemTotal: calculateItemTotal(basePrice, modifierTotal, quantity),
+          itemTotal: calculateItemTotal(validBasePrice, modifierTotal, validQuantity),
           syncStatus: 'pending',
         };
         state.syncedCartItems.push(newItem);

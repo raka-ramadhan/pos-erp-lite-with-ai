@@ -8,13 +8,15 @@ export * from './usePermission';
 export * from './useProducts';
 export * from './useTables';
 export * from './useCart';
-export * from './usePayment';
 export * from './useOrders';
-export * from './useOrderItems';
-export * from './useCalculation';
+export { useTaxes, useDiscounts, useOrderCalculation, useApplyDiscount, useRemoveDiscount } from './useCalculation';
 
-// Hybrid cart hooks
-export * from './useInitializeCart';
-export * from './useAddToCart';
-export * from './useUpdateCartItem';
-export * from './useRemoveFromCart';
+// Simple cart hook (backend-first, no sync)
+export * from './useSimpleCart';
+
+// Payment hooks
+export { usePaymentMethods, useIsOrderPaid } from './usePaymentMethods';
+export { useProcessPayment } from './useProcessPayment';
+
+// Order items hooks
+export { useOrderWithItems, useOrderItems, useAddOrderItem, useUpdateOrderItem, useUpdateOrderItemNotes, useRemoveOrderItem } from './useOrderItems';

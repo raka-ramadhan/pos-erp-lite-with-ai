@@ -161,8 +161,11 @@ export function ModifierModal({
       }
     });
 
-    await onAddToOrder(product.id, quantity, product.price, modifiersPayload);
-  }, [product, quantity, selections, validateSelections, onAddToOrder]);
+    // Calculate unit price (base + modifiers) for display in cart
+    const unitPrice = product.price + modifierTotal;
+
+    await onAddToOrder(product.id, quantity, unitPrice, modifiersPayload);
+  }, [product, quantity, selections, validateSelections, onAddToOrder, modifierTotal]);
 
   // Handle quantity change
   const handleQuantityChange = useCallback((delta: number) => {

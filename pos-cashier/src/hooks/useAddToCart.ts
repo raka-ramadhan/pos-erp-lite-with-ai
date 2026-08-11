@@ -10,10 +10,10 @@ import {
   setSyncStatus,
   setCurrentOrder,
 } from '../store/slices/posSlice';
-import { createDebouncedSave, createPersistedCart, areModifiersEqual } from '../utils/cartPersistence';
+import { createDebouncedSave, createPersistedCart, areModifiersEqual, generateTempId } from '../utils/cartPersistence';
 import orderItemsApi, { type CreateOrderItemPayload } from '../api/order-items';
 import ordersApi, { type CreateOrderPayload } from '../api/orders';
-import type { Order } from '../api/orders';
+import { store } from '../store';
 
 interface AddToCartParams {
   productId: string;
@@ -31,6 +31,7 @@ interface UseAddToCartOptions {
 }
 
 interface PendingAdd {
+  tempId: string;           // For tracking which Redux item to update
   productId: string;
   productName: string;
   basePrice: number;
@@ -42,148 +43,157 @@ interface PendingAdd {
   reject: (error: Error) => void;
 }
 
-// Debounce delay for batching rapid clicks
-const SYNC_DELAY_MS = 300;
+// Debounce delay for batching rapid clicks on SAME product
+const SYNC_DELAY_MS = 200;
 
 /**
- * Optimistic add to cart hook with debounced batching
- * - Rapid clicks are batched into single request
- * - Quantity is accumulated before sending to backend
+ * Optimistic add to cart hook
+ * - Rapid clicks on SAME product are debounced and batched
+ * - Different products sync immediately
  */
 export function useAddToCart(options?: UseAddToCartOptions) {
   const dispatch = useDispatch();
   const posState = useSelector((state: RootState) => state.pos);
   const queryClient = useQueryClient();
 
-  const debouncedSave = createDebouncedSave(300);
+  const debouncedSave = createDebouncedSave(200);
   const pendingAddsRef = useRef<Map<string, PendingAdd>>(new Map());
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Internal mutation for server sync
-  const syncMutation = useMutation({
-    mutationFn: async (params: {
-      productId: string;
-      productName: string;
-      basePrice: number;
-      quantity: number;
-      modifiers: SelectedModifier[];
-      notes?: string;
-      variantName?: string;
-    }) => {
-      const { productId, productName, basePrice, quantity, modifiers, notes, variantName } = params;
+  // Flush pending adds to server - SEQUENTIAL to avoid race conditions
+  const flushPendingAdds = useCallback(async () => {
+    // Get items from pending, then CLEAR immediately
+    const items = Array.from(pendingAddsRef.current.values());
+    if (items.length === 0) return;
 
-      // Check if we need to create an order first
-      let orderId = posState.currentOrder?.id;
+    // Clear pending BEFORE processing to prevent duplicates
+    pendingAddsRef.current.clear();
 
-      if (!orderId) {
-        // Create new order first
-        const orderPayload: CreateOrderPayload = {
-          orderType: posState.orderType === 'dine_in_with_table' ? 'dine_in' :
-                     posState.orderType === 'takeaway' ? 'take_away' : 'dine_in',
-          tableId: posState.selectedTable?.id,
-          customerCount: 1,
-        };
-
-        const newOrder = await ordersApi.create(orderPayload);
-        orderId = newOrder.id;
-
-        // Update Redux with new order
-        dispatch(setCurrentOrder(newOrder));
-      }
-
-      // Prepare modifiers for API
-      const apiModifiers = modifiers.length > 0
-        ? modifiers.map((mod) => ({
-            modifierId: mod.id,
-            modifierName: mod.name,
-            quantity: 1,
-            unitPrice: mod.additionalPrice,
-          }))
-        : undefined;
-
-      // Create order item payload
-      const itemPayload: CreateOrderItemPayload = {
-        productId,
-        quantity,
-        unitPrice: basePrice,
-        variantName,
-        notes,
-        modifiers: apiModifiers,
-      };
-
-      // Call server API
-      const serverItem = await orderItemsApi.addOrderItem(orderId, itemPayload);
-
-      return { serverItem, tempId: null };
-    },
-    onSuccess: (result, params) => {
-      // Invalidate queries to sync with server
-      queryClient.invalidateQueries({
-        queryKey: ['orders', posState.currentOrder?.id, 'with-items'],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['orders', posState.currentOrder?.id, 'calculation'],
-      });
-
-      dispatch(setSyncStatus('synced'));
-    },
-    onError: (error, params) => {
-      console.error('Failed to sync to server:', error);
-      dispatch(setSyncStatus('failed'));
-    },
-  });
-
-  // Flush all pending adds to server
-  const flushPendingAdds = useCallback(() => {
-    const pending = pendingAddsRef.current;
-    if (pending.size === 0) return;
-
-    // Get all pending adds and clear
-    const items = Array.from(pending.values());
-    pending.clear();
-
-    // Cancel timeout
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
       syncTimeoutRef.current = null;
     }
 
-    // Send each unique product+modifiers combo
-    items.forEach((item) => {
-      syncMutation.mutate(item, {
-        onSuccess: (result) => options?.onSuccess?.(result, item),
-        onError: (error) => options?.onError?.(error, item),
-      });
-    });
-  }, [syncMutation, options]);
+    // Process items SEQUENTIALLY to avoid race conditions
+    let orderId = posState.currentOrder?.id;
+
+    for (const item of items) {
+      try {
+        // Create order if needed (only once, at the start)
+        if (!orderId) {
+          const orderPayload: CreateOrderPayload = {
+            orderType: posState.orderType === 'dine_in_with_table' ? 'dine_in' :
+                       posState.orderType === 'takeaway' ? 'take_away' : 'dine_in',
+            tableId: posState.selectedTable?.id,
+            customerCount: 1,
+          };
+
+          const newOrder = await ordersApi.create(orderPayload);
+          orderId = newOrder.id;
+          dispatch(setCurrentOrder(newOrder));
+        }
+
+        const apiModifiers = item.modifiers.length > 0
+          ? item.modifiers.map((mod) => ({
+              modifierId: mod.id,
+              modifierName: mod.name,
+              quantity: 1,
+              unitPrice: mod.additionalPrice,
+            }))
+          : undefined;
+
+        const itemPayload: CreateOrderItemPayload = {
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.basePrice,
+          variantName: item.variantName,
+          notes: item.notes,
+          modifiers: apiModifiers,
+        };
+
+        const savedItem = await orderItemsApi.addOrderItem(orderId, itemPayload);
+
+        // Update individual item's sync status to 'synced' and store serverId
+        dispatch(updateItemSyncStatus({
+          tempId: item.tempId,
+          status: 'synced',
+          serverId: savedItem.id,
+        }));
+
+        // Invalidate queries
+        queryClient.invalidateQueries({
+          queryKey: ['orders', orderId, 'with-items'],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['orders', orderId, 'calculation'],
+        });
+
+        item.resolve(savedItem);
+        options?.onSuccess?.(savedItem, item);
+      } catch (error) {
+        console.error('Failed to sync to server:', error);
+        item.reject(error as Error);
+        options?.onError?.(error as Error, item);
+      }
+    }
+
+    // Set sync status based on results
+    dispatch(setSyncStatus('synced'));
+  }, [dispatch, posState.currentOrder, posState.orderType, posState.selectedTable, queryClient, options]);
 
   return useMutation({
-    mutationFn: async (params: AddToCartParams): Promise<unknown> => {
-      // This is called optimistically, actual sync happens in onMutate
-      // Return a promise that resolves when sync completes
+    mutationFn: async (params: AddToCartParams, context): Promise<unknown> => {
       return new Promise((resolve, reject) => {
-        // Queue the add
         const key = `${params.productId}-${params.variantName || 'no-variant'}-${JSON.stringify(params.modifiers.map(m => m.id).sort())}`;
+
+        // Use tempId from context (set by onMutate), fallback to finding it from Redux
+        let tempId = context?.tempId;
+
+        if (!tempId) {
+          // Find the tempId from current Redux state
+          const state = store.getState();
+          const foundItem = state.pos.syncedCartItems.find((item) =>
+            item.productId === params.productId &&
+            item.variantName === params.variantName &&
+            areModifiersEqual(item.modifiers, params.modifiers)
+          );
+          tempId = foundItem?.tempId || generateTempId();
+        }
 
         const existing = pendingAddsRef.current.get(key);
         if (existing) {
-          // Accumulate quantity for same product
+          // Same product+modifiers - accumulate quantity, extend debounce
           existing.quantity += params.quantity;
           existing.resolve = resolve;
           existing.reject = reject;
         } else {
           pendingAddsRef.current.set(key, {
-            ...params,
+            tempId,
+            productId: params.productId,
+            productName: params.productName,
+            basePrice: params.basePrice,
+            quantity: params.quantity,
+            modifiers: params.modifiers,
+            notes: params.notes,
+            variantName: params.variantName,
             resolve,
             reject,
           });
         }
 
-        // Schedule sync
-        if (syncTimeoutRef.current) {
-          clearTimeout(syncTimeoutRef.current);
+        // Different product - sync immediately (no debounce)
+        if (pendingAddsRef.current.size === 1) {
+          // First item - start debounce timer
+          syncTimeoutRef.current = setTimeout(flushPendingAdds, SYNC_DELAY_MS);
+        } else if (pendingAddsRef.current.size > 1) {
+          // More than one product pending - flush immediately
+          // (don't wait for debounce for different products)
+          if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+            syncTimeoutRef.current = null;
+          }
+          flushPendingAdds();
         }
-        syncTimeoutRef.current = setTimeout(flushPendingAdds, SYNC_DELAY_MS);
       });
     },
 
@@ -193,7 +203,6 @@ export function useAddToCart(options?: UseAddToCartOptions) {
         queryKey: ['orders', posState.currentOrder?.id, 'with-items'],
       });
 
-      // Get current cart state
       const currentItems = posState.syncedCartItems;
 
       // Find existing item with same productId, variantName, and modifiers
@@ -210,6 +219,25 @@ export function useAddToCart(options?: UseAddToCartOptions) {
           tempId: existingItem.tempId,
           quantity: newQuantity,
         }));
+
+        dispatch(setSyncStatus('syncing'));
+
+        const persistedCart = createPersistedCart({
+          sessionId: posState.sessionId,
+          orderId: posState.currentOrder?.id || null,
+          orderType: posState.orderType,
+          selectedTableId: posState.selectedTable?.id || null,
+          cartItems: posState.syncedCartItems,
+        });
+        debouncedSave(persistedCart);
+
+        // Return tempId from existing item for mutationFn to use
+        return {
+          tempId: existingItem.tempId,
+          productId: params.productId,
+          quantity: params.quantity,
+          isUpdate: true,
+        };
       } else {
         // Add new item (optimistic)
         dispatch(addToSyncedCart({
@@ -221,39 +249,44 @@ export function useAddToCart(options?: UseAddToCartOptions) {
           notes: params.notes,
           variantName: params.variantName,
         }));
+
+        // IMMEDIATELY read the new state to get the tempId generated by Redux
+        const stateAfterDispatch = queryClient.getQueryData<RootState>(['redux', 'pos']);
+        const newItem = stateAfterDispatch?.pos?.syncedCartItems?.find(
+          (item) => item.productId === params.productId &&
+                   item.variantName === params.variantName &&
+                   areModifiersEqual(item.modifiers, params.modifiers)
+        );
+
+        dispatch(setSyncStatus('syncing'));
+
+        const persistedCart = createPersistedCart({
+          sessionId: posState.sessionId,
+          orderId: posState.currentOrder?.id || null,
+          orderType: posState.orderType,
+          selectedTableId: posState.selectedTable?.id || null,
+          cartItems: posState.syncedCartItems,
+        });
+        debouncedSave(persistedCart);
+
+        // Return tempId from the newly added item for mutationFn to use
+        return {
+          tempId: newItem?.tempId || generateTempId(),
+          productId: params.productId,
+          quantity: params.quantity,
+          isUpdate: false,
+        };
       }
-
-      // Update sync status
-      dispatch(setSyncStatus('syncing'));
-
-      // Save to localStorage (debounced) with updated items
-      const persistedCart = createPersistedCart({
-        sessionId: posState.sessionId,
-        orderId: posState.currentOrder?.id || null,
-        orderType: posState.orderType,
-        selectedTableId: posState.selectedTable?.id || null,
-        cartItems: posState.syncedCartItems,
-      });
-      debouncedSave(persistedCart);
-
-      return {
-        tempId: existingItem?.tempId,
-        productId: params.productId,
-        quantity: params.quantity,
-        isUpdate: !!existingItem,
-      };
     },
 
     onSuccess: () => {
-      // Optimistic update done, actual sync is happening via flushPendingAdds
+      // Optimistic update done
     },
 
     onError: (error, params) => {
-      // Cancel pending sync for this item
       const key = `${params.productId}-${params.variantName || 'no-variant'}-${JSON.stringify(params.modifiers.map(m => m.id).sort())}`;
       pendingAddsRef.current.delete(key);
 
-      // Mark as failed in Redux
       const currentItems = posState.syncedCartItems;
       const addedItem = currentItems.find(
         (item) => item.productId === params.productId && item.syncStatus === 'pending'

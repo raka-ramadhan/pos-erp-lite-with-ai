@@ -9,6 +9,7 @@ import { OrderTypePage } from '../pages/POS/OrderTypePage';
 import { TablesPage } from '../pages/POS/TablesPage';
 import { ProductsPage } from '../pages/POS/ProductsPage';
 import { OrderSessionPage } from '../pages/POS/OrderSessionPage';
+import { PaymentPage } from '../pages/POS/PaymentPage';
 import { useEffect } from 'react';
 import { useRefreshProfile } from '../hooks';
 import { APP_PERMISSIONS } from '../types';
@@ -96,6 +97,9 @@ export function AppRoutes() {
 
         {/* Order Session */}
         <Route path="orders/:orderId" element={<OrderSessionPage />} />
+
+        {/* Payment */}
+        <Route path="orders/:orderId/payment" element={<PaymentPage />} />
 
         {/* Future Routes (placeholder comments for development) */}
         {/*

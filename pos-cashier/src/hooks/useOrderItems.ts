@@ -1,12 +1,10 @@
-import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDispatch, useSelector } from 'react-redux';
 import orderItemsApi, {
   type CreateOrderItemPayload,
   type UpdateOrderItemPayload,
-  type OrderWithItems,
 } from '../api/order-items';
-import { removeFromSyncedCart, setSyncStatus } from '../store/slices/posSlice';
+import { removeFromSyncedCart } from '../store/slices/posSlice';
 import { createDebouncedSave, createPersistedCart } from '../utils/cartPersistence';
 import type { RootState } from '../store';
 
@@ -32,28 +30,21 @@ export function useOrderItems(orderId: string | null) {
 
 // Hook: Add item to order
 export function useAddOrderItem(orderId: string | null) {
-  const dispatch = useDispatch();
-  const posState = useSelector((state: RootState) => state.pos);
   const queryClient = useQueryClient();
-  const debouncedSave = createDebouncedSave(300);
 
   return useMutation({
     mutationFn: (payload: CreateOrderItemPayload) =>
       orderItemsApi.addOrderItem(orderId!, payload),
     onSuccess: () => {
-      // Invalidate order items cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'with-items'] });
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'calculation'] });
     },
   });
 }
 
-// Hook: Update order item - Also syncs with Redux
+// Hook: Update order item
 export function useUpdateOrderItem(orderId: string | null) {
-  const dispatch = useDispatch();
-  const posState = useSelector((state: RootState) => state.pos);
   const queryClient = useQueryClient();
-  const debouncedSave = createDebouncedSave(300);
 
   return useMutation({
     mutationFn: async ({
@@ -63,16 +54,10 @@ export function useUpdateOrderItem(orderId: string | null) {
       itemId: string;
       payload: UpdateOrderItemPayload;
     }) => {
-      // Find tempId in Redux
-      const syncedItem = posState.syncedCartItems.find(item => item.serverId === itemId);
-
-      // Update on server
       await orderItemsApi.updateOrderItem(orderId!, itemId, payload);
-
-      return { serverItemId: itemId, tempId: syncedItem?.tempId, payload };
+      return { serverItemId: itemId, payload };
     },
-    onSuccess: (result) => {
-      // Invalidate order items cache
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'with-items'] });
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'calculation'] });
     },
@@ -93,7 +78,7 @@ export function useUpdateOrderItemNotes(orderId: string | null) {
   });
 }
 
-// Hook: Remove order item - FIXED: Also syncs with Redux and localStorage
+// Hook: Remove order item
 export function useRemoveOrderItem(orderId: string | null) {
   const dispatch = useDispatch();
   const posState = useSelector((state: RootState) => state.pos);
@@ -102,21 +87,14 @@ export function useRemoveOrderItem(orderId: string | null) {
 
   return useMutation({
     mutationFn: async (itemId: string) => {
-      // First, find the tempId in Redux syncedCartItems that matches this server itemId
       const syncedItem = posState.syncedCartItems.find(item => item.serverId === itemId);
-
-      // Remove from server
       await orderItemsApi.removeOrderItem(orderId!, itemId);
-
       return { serverItemId: itemId, tempId: syncedItem?.tempId };
     },
     onSuccess: (result) => {
-      // Also remove from Redux syncedCartItems if it exists
       if (result.tempId) {
         dispatch(removeFromSyncedCart(result.tempId));
       }
-
-      // Save to localStorage
       const persistedCart = createPersistedCart({
         sessionId: posState.sessionId,
         orderId: posState.currentOrder?.id || null,
@@ -125,8 +103,6 @@ export function useRemoveOrderItem(orderId: string | null) {
         cartItems: posState.syncedCartItems.filter(item => item.tempId !== result.tempId),
       });
       debouncedSave(persistedCart);
-
-      // Invalidate order items cache
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'with-items'] });
       queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'calculation'] });
     },
