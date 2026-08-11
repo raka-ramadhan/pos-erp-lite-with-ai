@@ -88,6 +88,14 @@ const ordersApi = {
     return response.data.data;
   },
 
+  // Release table - remove table assignment, order becomes takeaway
+  releaseTable: async (orderId: string): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(
+      `/orders/${orderId}/release-table`
+    );
+    return response.data.data;
+  },
+
   getCalculation: async (orderId: string): Promise<OrderCalculation> => {
     const response = await apiClient.get<ApiResponse<OrderCalculation>>(
       `/orders/${orderId}/calculation`

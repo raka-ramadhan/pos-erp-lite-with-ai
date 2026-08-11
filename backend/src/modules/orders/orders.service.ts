@@ -440,6 +440,34 @@ export class OrdersService {
     });
   }
 
+  /**
+   * Release table - remove table assignment from order
+   * Order becomes takeaway (no table)
+   */
+  async releaseTable(orderId: string): Promise<Order> {
+    const order = await this.findOne(orderId);
+
+    // Business validation: Cannot modify completed or cancelled orders
+    if (
+      order.orderStatus === OrderStatus.COMPLETED ||
+      order.orderStatus === OrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        'Cannot release table from completed or cancelled orders',
+      );
+    }
+
+    // Check if order has a table
+    if (!order.tableId) {
+      throw new BadRequestException('Order does not have a table assigned');
+    }
+
+    // Release the table
+    order.tableId = null;
+    order.orderType = OrderType.TAKE_AWAY;
+    return this.orderRepository.save(order);
+  }
+
   // ==================== ORDER ITEMS ====================
 
   /**

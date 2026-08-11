@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Check,
   X,
+  DoorOpen,
 } from 'lucide-react';
 import { Card, CardBody, Button, Input } from '../../components/ui';
 import {
@@ -29,7 +30,7 @@ import {
 } from '../../hooks';
 import { cn } from '../../utils';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { clearCurrentOrder } from '../../store/slices/posSlice';
+import { clearCurrentOrder, setCurrentOrder } from '../../store/slices/posSlice';
 import { CancelOrderModal } from '../../components/pos/cart/CancelOrderModal';
 import ordersApi from '../../api/orders';
 
@@ -71,6 +72,16 @@ export function OrderSessionPage() {
 
   // Fetch calculation from backend (single source of truth)
   const { data: calculation } = useOrderCalculation(orderId);
+
+  // Sync order to Redux when loaded from backend
+  useEffect(() => {
+    if (order) {
+      dispatch(setCurrentOrder(order));
+    }
+  }, [order, dispatch]);
+
+  // Release table state
+  const [releasingTable, setReleasingTable] = useState(false);
 
   // Mutations
   const updateItemMutation = useUpdateOrderItem(orderId);
@@ -160,6 +171,27 @@ export function OrderSessionPage() {
     }
   };
 
+  // Handle release table (remove table assignment, keep order)
+  const handleReleaseTable = async () => {
+    if (!order || !order.tableId) return;
+
+    const confirmMsg = 'Lepaskan meja dari order ini? Order akan tetap aktif tanpa meja dan bisa dipindahkan ke meja lain nanti.';
+    if (!window.confirm(confirmMsg)) return;
+
+    setReleasingTable(true);
+    try {
+      // Call releaseTable API to remove table assignment
+      const updatedOrder = await ordersApi.releaseTable(order.id);
+      dispatch(setCurrentOrder(updatedOrder));
+      alert('Meja berhasil dilepaskan. Order sekarang menjadi takeaway.');
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || err?.message;
+      alert(`Gagal melepaskan meja: ${errorMessage}`);
+    } finally {
+      setReleasingTable(false);
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -241,15 +273,31 @@ export function OrderSessionPage() {
               </div>
             </div>
             {canEdit && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCancelModal(true)}
-                className="text-red-600 hover:bg-red-50"
-              >
-                <AlertCircle className="w-4 h-4 mr-1" />
-                Batal
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Release Table Button - only show if table is assigned */}
+                {order.tableId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleReleaseTable}
+                    disabled={releasingTable}
+                    isLoading={releasingTable}
+                    className="text-amber-600 hover:bg-amber-50"
+                  >
+                    <DoorOpen className="w-4 h-4 mr-1" />
+                    Lepas Meja
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCancelModal(true)}
+                  className="text-red-600 hover:bg-red-50"
+                >
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  Batal
+                </Button>
+              </div>
             )}
           </div>
         </div>

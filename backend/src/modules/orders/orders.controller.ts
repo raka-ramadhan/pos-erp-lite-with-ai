@@ -103,6 +103,15 @@ export class OrdersController {
     return this.ordersService.changeTable(id, changeTableDto.newTableId);
   }
 
+  /**
+   * Release table - remove table assignment from order (order becomes takeaway)
+   */
+  @Patch(':id/release-table')
+  @HttpCode(HttpStatus.OK)
+  releaseTable(@Param('id') id: string) {
+    return this.ordersService.releaseTable(id);
+  }
+
   // ==================== ORDER ITEMS ====================
 
   /**
