@@ -6,3 +6,4 @@ export * from './assign-table.dto';
 export * from './order-item.dto';
 export * from './apply-discount.dto';
 export * from './order-response.dto';
+export * from './cancel-order.dto';
