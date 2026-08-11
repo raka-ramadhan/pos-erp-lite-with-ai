@@ -23,6 +23,7 @@ import {
   UpdateOrderItemDto,
   UpdateOrderItemNotesDto,
   ApplyDiscountDto,
+  CancelOrderDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RequirePermission } from '../../common/decorators';
@@ -208,8 +209,8 @@ export class OrdersController {
   @HttpCode(HttpStatus.OK)
   cancelOrder(
     @Param('id') orderId: string,
-    @Body() body: { reason?: string },
+    @Body() cancelDto: CancelOrderDto,
   ) {
-    return this.ordersService.cancelOrder(orderId, body.reason || 'Cancelled by user');
+    return this.ordersService.cancelOrder(orderId, cancelDto.reason);
   }
 }

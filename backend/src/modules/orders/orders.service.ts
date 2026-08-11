@@ -12,6 +12,7 @@ import { OrderItemModifier } from './entities/order-item-modifier.entity';
 import { Tax } from '../taxes/entities/tax.entity';
 import { Discount, DiscountType } from '../discounts/entities/discount.entity';
 import { Product } from '../products/entities/product.entity';
+import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import {
   CreateOrderDto,
   UpdateOrderDto,
@@ -1005,30 +1006,53 @@ export class OrdersService {
    * Used when user cancels or abandons the order
    */
   async cancelOrder(orderId: string, reason: string): Promise<void> {
-    const order = await this.findOne(orderId);
+    return this.dataSource.transaction(async (manager) => {
+      // 1. Lock and fetch the order
+      const order = await manager.findOne(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    // Business validation: Cannot cancel completed or already cancelled orders
-    if (
-      order.orderStatus === OrderStatus.COMPLETED ||
-      order.orderStatus === OrderStatus.CANCELLED
-    ) {
-      throw new BadRequestException(
-        `Cannot cancel ${order.orderStatus} order`
-      );
-    }
+      if (!order) {
+        throw new NotFoundException(`Order with ID ${orderId} not found`);
+      }
 
-    // Delete all order items (cascade)
-    await this.orderItemRepository.delete({ orderId });
+      // 2. Check order status
+      if (order.orderStatus === OrderStatus.COMPLETED) {
+        throw new BadRequestException('Cannot cancel a completed order. Use refund instead.');
+      }
 
-    // Update order status to CANCELLED
-    await this.orderRepository.update(orderId, {
-      orderStatus: OrderStatus.CANCELLED,
-      cancelledAt: new Date(),
-      cancelledReason: reason,
-      subtotal: 0,
-      taxAmount: 0,
-      discountAmount: 0,
-      totalAmount: 0,
+      if (order.orderStatus === OrderStatus.CANCELLED) {
+        throw new ConflictException('Order is already cancelled');
+      }
+
+      // 3. Check if order has been paid
+      const existingPayment = await manager.findOne(Payment, {
+        where: {
+          orderId: orderId,
+          status: PaymentStatus.COMPLETED,
+        },
+      });
+
+      if (existingPayment) {
+        throw new BadRequestException(
+          'Cannot cancel order that has been paid. Please process a refund instead.',
+        );
+      }
+
+      // 4. Delete order items
+      await manager.delete(OrderItem, { orderId });
+
+      // 5. Update order status
+      await manager.update(Order, orderId, {
+        orderStatus: OrderStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelledReason: reason,
+        subtotal: 0,
+        taxAmount: 0,
+        discountAmount: 0,
+        totalAmount: 0,
+      });
     });
   }
 }
