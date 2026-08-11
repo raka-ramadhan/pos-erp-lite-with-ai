@@ -132,7 +132,7 @@ export function HistoryPage() {
 
   // Pagination handlers
   const canGoPrevious = page > 1;
-  const canGoNext = data ? page < data.meta.totalPages : false;
+  const canGoNext = data?.meta ? page < data.meta.totalPages : false;
 
   const handlePrevious = () => {
     if (canGoPrevious) setPage(p => p - 1);
@@ -274,7 +274,7 @@ export function HistoryPage() {
             })}
 
             {/* Pagination */}
-            {data.meta.totalPages > 1 && (
+            {data?.meta && data.meta.totalPages > 1 && (
               <div className="flex items-center justify-between pt-4 pb-8">
                 <Button
                   variant="outline"
