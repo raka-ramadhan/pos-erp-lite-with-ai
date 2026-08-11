@@ -9,6 +9,7 @@ export * from './useProducts';
 export * from './useTables';
 export * from './useCart';
 export * from './useOrders';
+export { useTransactions, useTransactionDetail, useReceipt } from './useTransactions';
 export { useTaxes, useDiscounts, useOrderCalculation, useApplyDiscount, useRemoveDiscount } from './useCalculation';
 
 // Simple cart hook (backend-first, no sync)
