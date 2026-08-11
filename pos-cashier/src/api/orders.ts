@@ -80,6 +80,14 @@ const ordersApi = {
     return response.data.data;
   },
 
+  cancelOrder: async (orderId: string, reason: string): Promise<{ message: string }> => {
+    const response = await apiClient.delete<ApiResponse<{ message: string }>>(
+      `/orders/${orderId}/cancel`,
+      { data: { reason } }
+    );
+    return response.data.data;
+  },
+
   getCalculation: async (orderId: string): Promise<OrderCalculation> => {
     const response = await apiClient.get<ApiResponse<OrderCalculation>>(
       `/orders/${orderId}/calculation`

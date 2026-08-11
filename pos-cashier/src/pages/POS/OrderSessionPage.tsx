@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { motion } from 'framer-motion';
+import { useDispatch } from 'react-redux';
 import {
   ArrowLeft,
   UtensilsCrossed,
@@ -20,7 +19,7 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import { Card, CardHeader, CardBody, Button, Input } from '../../components/ui';
+import { Card, CardBody, Button, Input } from '../../components/ui';
 import {
   useOrderWithItems,
   useUpdateOrderItem,
@@ -30,7 +29,9 @@ import {
 } from '../../hooks';
 import { cn } from '../../utils';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import type { RootState } from '../../store';
+import { clearCurrentOrder } from '../../store/slices/posSlice';
+import { CancelOrderModal } from '../../components/pos/cart/CancelOrderModal';
+import ordersApi from '../../api/orders';
 
 // Order type config
 const ORDER_TYPE_CONFIG = {
@@ -51,7 +52,7 @@ export function OrderSessionPage() {
   useDocumentTitle('Order Session - POS');
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const posState = useSelector((state: RootState) => state.pos);
+  const dispatch = useDispatch();
 
   // Redirect if orderId is undefined or 'draft' - order not created yet
   useEffect(() => {
@@ -80,6 +81,10 @@ export function OrderSessionPage() {
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [notesText, setNotesText] = useState('');
   const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+
+  // Cancel order state
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Use backend order if available, fallback to Redux state
   const order = orderWithItems?.order;
@@ -135,6 +140,24 @@ export function OrderSessionPage() {
   const handleCancelNotes = () => {
     setEditingNotesId(null);
     setNotesText('');
+  };
+
+  // Handle cancel order
+  const handleCancelOrder = async (reason: string) => {
+    if (!orderId) return;
+
+    setCancelling(true);
+    try {
+      await ordersApi.cancelOrder(orderId, reason);
+      dispatch(clearCurrentOrder());
+      navigate('/pos');
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || err?.message;
+      alert(`Gagal membatalkan order: ${errorMessage}`);
+    } finally {
+      setCancelling(false);
+      setShowCancelModal(false);
+    }
   };
 
   // Loading state
@@ -217,6 +240,17 @@ export function OrderSessionPage() {
                 </p>
               </div>
             </div>
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCancelModal(true)}
+                className="text-red-600 hover:bg-red-50"
+              >
+                <AlertCircle className="w-4 h-4 mr-1" />
+                Batal
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -452,21 +486,44 @@ export function OrderSessionPage() {
       {/* Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-3">
         <div className="max-w-5xl mx-auto flex gap-3">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => navigate('/pos')}
-          >
-            Batal
-          </Button>
-          <Button
-            className="flex-1 bg-amber-600 hover:bg-amber-700"
-            onClick={() => navigate('/pos/products')}
-          >
-            <span>Pilih Menu</span>
-          </Button>
+          {canEdit && (
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => navigate('/pos/products')}
+            >
+              <span>Tambah Menu</span>
+            </Button>
+          )}
+          {canEdit && (
+            <Button
+              className="flex-1 bg-amber-600 hover:bg-amber-700"
+              onClick={() => navigate(`/pos/orders/${orderId}/payment`)}
+              disabled={items.length === 0}
+            >
+              <span>Bayar Sekarang</span>
+              <span className="ml-1">Rp {total.toLocaleString('id-ID')}</span>
+            </Button>
+          )}
+          {!canEdit && (
+            <Button
+              className="w-full"
+              onClick={() => navigate('/pos')}
+            >
+              Kembali ke POS
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Cancel Order Modal */}
+      <CancelOrderModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleCancelOrder}
+        orderNumber={order?.orderNumber || ''}
+        isLoading={cancelling}
+      />
     </div>
   );
 }
