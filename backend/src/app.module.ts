@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -27,6 +28,7 @@ import { TransformInterceptor } from './common/interceptors';
 @Module({
   imports: [
     TypeOrmModule.forRoot(databaseConfig()),
+    EventEmitterModule.forRoot(),
     AuthModule,
     UsersModule,
     RolesModule,

@@ -1,111 +1,59 @@
-# Task 6: Create Cancel Order Modal Component
+# Task 6: Backend — Integrate Snapshot Trigger
 
-## Files
-- Create: `pos-cashier/src/components/pos/cart/CancelOrderModal.tsx`
+## Goal
+Integrate transaction snapshot creation into the payment flow so snapshots are created automatically when payment is completed.
 
-## Interfaces
-- Props: `{ isOpen: boolean, onClose: () => void, onConfirm: (reason: string) => void, orderNumber: string, isLoading?: boolean }`
-- Produces: Confirmation dialog with reason input
+## Files to Modify
+1. `backend/src/modules/payments/payments.service.ts`
+2. `backend/src/modules/transactions/transactions.service.ts`
 
-## Implementation
+## Approach: EventEmitter Pattern
 
-Create the CancelOrderModal component:
+### Why EventEmitter?
+- Avoids circular dependency between PaymentsModule and TransactionsModule
+- Decouples payment completion from snapshot creation
+- Follows NestJS best practices
 
-```tsx
-import { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { Button, Input } from '../../ui';
-import { cn } from '../../../utils';
+### Implementation Steps
 
-interface CancelOrderModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (reason: string) => void;
-  orderNumber: string;
-  isLoading?: boolean;
-}
+1. **Install EventEmitterModule** if not already installed
+   - Check: backend/src/app.module.ts
+   - Add EventEmitterModule if missing
 
-export function CancelOrderModal({
-  isOpen,
-  onClose,
-  onConfirm,
-  orderNumber,
-  isLoading,
-}: CancelOrderModalProps) {
-  const [reason, setReason] = useState('');
+2. **Modify PaymentsService (payments.service.ts)**
+   - Inject EventEmitter2
+   - After successful payment completion, emit event:
+     ```
+     this.eventEmitter.emit('payment.completed', { orderId, paymentId });
+     ```
 
-  if (!isOpen) return null;
+3. **Modify TransactionsService (transactions.service.ts)**
+   - Inject EventEmitter2
+   - In constructor, listen for event:
+     ```typescript
+     this.eventEmitter.on('payment.completed', async (data: { orderId: string }) => {
+       try {
+         await this.createSnapshotFromOrder(data.orderId);
+       } catch (error) {
+         this.logger.error('Failed to create transaction snapshot', error);
+       }
+     });
+     ```
 
-  const handleSubmit = () => {
-    if (reason.trim()) {
-      onConfirm(reason.trim());
-    }
-  };
+## Payment Flow Check
+Find the method in payments.service.ts that handles completed payment and add the emit call there.
 
-  const canSubmit = reason.trim().length > 0;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 bg-red-50 border-b border-red-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-red-900">Batalkan Order?</h2>
-              <p className="text-sm text-red-700">#{orderNumber}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-4">
-          <p className="text-sm text-slate-600">
-            Order akan dibatalkan dan tidak dapat dikembalikan. Semua item pesanan akan dihapus.
-          </p>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Alasan Pembatalan <span className="text-red-500">*</span>
-            </label>
-            <Input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Contoh: Customer berubah pikiran"
-              disabled={isLoading}
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-3">
-          <Button
-            variant="secondary"
-            className="flex-1"
-            onClick={onClose}
-            disabled={isLoading}
-          >
-            Kembali
-          </Button>
-          <Button
-            variant="danger"
-            className="flex-1"
-            onClick={handleSubmit}
-            disabled={!canSubmit || isLoading}
-            isLoading={isLoading}
-          >
-            Batalkan Order
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-```
+## Global Constraints
+- Don't modify existing payment logic
+- Only add event emission
+- Handle errors gracefully in event listener
 
 ## Steps
-1. Create the CancelOrderModal component file
-2. Verify TypeScript compiles
-3. Commit
+1. Check if EventEmitterModule is installed
+2. Modify PaymentsService to emit event
+3. Modify TransactionsService to listen for event
+4. Verify TypeScript compilation
+5. Commit
+
+## Report Contract
+Write report to: /var/www/html/pos-porfolio/.superpowers/sdd/task-6-report.md

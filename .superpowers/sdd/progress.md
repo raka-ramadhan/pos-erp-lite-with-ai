@@ -25,3 +25,4 @@
 | 2 | Backend Transaction Entities | complete | 2449532 |
 | 3 | Backend Transaction DTOs | complete | 4217e11 |
 | 4 | Backend Transaction Service | complete | 296ddde |
+| 5 | Backend Controller & Module | complete | 4f82df2 |

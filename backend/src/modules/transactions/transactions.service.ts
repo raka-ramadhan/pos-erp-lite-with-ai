@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Transaction, TransactionOrderType, DiscountType as TransactionDiscountType } from './entities/transaction.entity';
 import { TransactionItem } from './entities/transaction-item.entity';
 import { TransactionItemModifier } from './entities/transaction-item-modifier.entity';
@@ -56,7 +57,19 @@ export class TransactionsService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
-  ) {}
+    private readonly eventEmitter: EventEmitter2,
+  ) {
+    // Listen for payment completed events to create transaction snapshots
+    this.eventEmitter.on('payment.completed', async (data: { orderId: string; paymentId: string }) => {
+      try {
+        this.logger.log(`Received payment.completed event for order ${data.orderId}`);
+        await this.createSnapshotFromOrder(data.orderId);
+        this.logger.log(`Transaction snapshot created for order ${data.orderId}`);
+      } catch (error) {
+        this.logger.error(`Failed to create transaction snapshot for order ${data.orderId}`, error);
+      }
+    });
+  }
 
   /**
    * Generate unique transaction number with format: TRX-YYYYMMDD-XXXXXX

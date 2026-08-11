@@ -3,9 +3,11 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { CreatePaymentDto } from './dto';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
@@ -30,6 +32,8 @@ export interface PaymentResponse {
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
@@ -38,6 +42,7 @@ export class PaymentsService {
     @InjectRepository(PaymentMethod)
     private readonly paymentMethodRepository: Repository<PaymentMethod>,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -139,6 +144,13 @@ export class PaymentsService {
         changeAmount: createDto.changeAmount || 0,
         completedAt: new Date(),
       });
+
+      // 9. Emit payment completed event for transaction snapshot creation
+      this.eventEmitter.emit('payment.completed', {
+        orderId: order.id,
+        paymentId: savedPayment.id,
+      });
+      this.logger.log(`Payment completed for order ${order.orderNumber}, event emitted`);
 
       // Return payment response with related data
       return {
