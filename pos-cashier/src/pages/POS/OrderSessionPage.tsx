@@ -75,10 +75,10 @@ export function OrderSessionPage() {
 
   // Sync order to Redux when loaded from backend
   useEffect(() => {
-    if (order) {
-      dispatch(setCurrentOrder(order));
+    if (orderWithItems?.order) {
+      dispatch(setCurrentOrder(orderWithItems.order));
     }
-  }, [order, dispatch]);
+  }, [orderWithItems, dispatch]);
 
   // Release table state
   const [releasingTable, setReleasingTable] = useState(false);
