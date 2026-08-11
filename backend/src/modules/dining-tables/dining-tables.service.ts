@@ -336,8 +336,14 @@ export class DiningTablesService {
         ? Math.floor((Date.now() - new Date(activeOrder.orderedAt).getTime()) / 60000)
         : 0;
 
+      // Derive status from active orders: if there's an active order, table is OCCUPIED
+      // This overrides the table's own status for POS display purposes
+      const tableResponse = this.toDiningTableResponse(table);
+      const derivedStatus = activeOrder ? 'occupied' : tableResponse.status;
+
       return {
-        ...this.toDiningTableResponse(table),
+        ...tableResponse,
+        status: derivedStatus as any, // Override with derived status
         activeOrder: activeOrder
           ? {
               id: activeOrder.id,
