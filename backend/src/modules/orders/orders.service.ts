@@ -384,58 +384,59 @@ export class OrdersService {
    * Used when customer wants to change their table
    */
   async changeTable(orderId: string, newTableId: string): Promise<Order> {
-    const order = await this.findOne(orderId);
+    return this.dataSource.transaction(async (manager) => {
+      // 1. Lock and fetch the order
+      const order = await manager.findOne(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    // Business validation: Cannot modify completed or cancelled orders
-    if (
-      order.orderStatus === OrderStatus.COMPLETED ||
-      order.orderStatus === OrderStatus.CANCELLED
-    ) {
-      throw new BadRequestException(
-        'Cannot change table for completed or cancelled orders',
-      );
-    }
+      if (!order) {
+        throw new NotFoundException(`Order with ID ${orderId} not found`);
+      }
 
-    // Business validation: Order must have a current table
-    if (!order.tableId) {
-      throw new BadRequestException('Order does not have a table assigned');
-    }
+      // 2. Validate order status
+      if (
+        order.orderStatus === OrderStatus.COMPLETED ||
+        order.orderStatus === OrderStatus.CANCELLED
+      ) {
+        throw new BadRequestException(
+          'Cannot change table for completed or cancelled orders',
+        );
+      }
 
-    // Business validation: Cannot change to same table
-    if (order.tableId === newTableId) {
-      throw new BadRequestException('New table must be different from current table');
-    }
+      // Business validation: Order must have a current table
+      if (!order.tableId) {
+        throw new BadRequestException('Order does not have a table assigned');
+      }
 
-    // Check if new table already has an active order
-    const existingOrder = await this.orderRepository.findOne({
-      where: {
-        tableId: newTableId,
-        orderStatus: OrderStatus.OPEN,
-      },
+      // Business validation: Cannot change to same table
+      if (order.tableId === newTableId) {
+        throw new BadRequestException(
+          'New table must be different from current table',
+        );
+      }
+
+      // 3. Check new table availability (with lock)
+      const existingOrder = await manager
+        .createQueryBuilder(Order, 'order')
+        .setLock('pessimistic_write')
+        .where('order.tableId = :newTableId', { newTableId })
+        .andWhere('order.orderStatus IN (:...statuses)', {
+          statuses: [OrderStatus.OPEN, OrderStatus.IN_PROGRESS],
+        })
+        .getOne();
+
+      if (existingOrder) {
+        throw new ConflictException(
+          `New table is already occupied by order ${existingOrder.orderNumber}`,
+        );
+      }
+
+      // 4. Update order
+      order.tableId = newTableId;
+      return manager.save(order);
     });
-
-    const existingOrderInProgress = await this.orderRepository.findOne({
-      where: {
-        tableId: newTableId,
-        orderStatus: OrderStatus.IN_PROGRESS,
-      },
-    });
-
-    if (existingOrder) {
-      throw new BadRequestException(
-        `New table is already occupied by order ${existingOrder.orderNumber}`,
-      );
-    }
-
-    if (existingOrderInProgress) {
-      throw new BadRequestException(
-        `New table is already occupied by order ${existingOrderInProgress.orderNumber}`,
-      );
-    }
-
-    // Change table
-    order.tableId = newTableId;
-    return this.orderRepository.save(order);
   }
 
   // ==================== ORDER ITEMS ====================
