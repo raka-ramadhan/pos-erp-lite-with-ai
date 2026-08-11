@@ -7,6 +7,7 @@ import type { RootState } from '../../store';
 import { useLogout } from '../../hooks';
 import { Button } from '../ui';
 import { Logo } from '../common';
+import { cn } from '../../utils/cn';
 
 // Breadcrumb item
 interface BreadcrumbItem {
@@ -120,6 +121,20 @@ export function POSLayout({ children }: { children?: React.ReactNode }) {
 
             {/* Right: User Info & Actions */}
             <div className="flex items-center gap-2">
+              {/* History Link */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/pos/history')}
+                className={cn(
+                  'text-slate-600 hover:text-amber-600 hover:bg-amber-50',
+                  location.pathname.includes('/history') && 'text-amber-600 bg-amber-50'
+                )}
+              >
+                <Clock className="w-4 h-4" />
+                <span className="hidden lg:inline ml-2">Riwayat</span>
+              </Button>
+
               {/* User Info */}
               <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
                 <div className="hidden sm:flex items-center gap-2 text-sm">

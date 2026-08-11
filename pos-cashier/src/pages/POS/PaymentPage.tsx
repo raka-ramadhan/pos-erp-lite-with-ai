@@ -9,11 +9,14 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  Clock,
+  History,
 } from 'lucide-react';
 import { Button, Card, Input } from '../../components/ui';
 import { useOrderWithItems, useOrderCalculation, usePaymentMethods, useProcessPayment } from '../../hooks';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { cn } from '../../utils';
+import { ROUTES } from '../../routes/constants';
 import type { PaymentMethod } from '../../api/payments';
 
 // Payment type icons
@@ -208,6 +211,16 @@ export function PaymentPage() {
             onClick={handleDone}
           >
             Selesai
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(ROUTES.POS_HISTORY)}
+            className="w-full mt-2 text-slate-600 hover:text-amber-600"
+          >
+            <History className="w-4 h-4 mr-2" />
+            Lihat Riwayat Transaksi
           </Button>
         </motion.div>
       </div>
