@@ -11,6 +11,7 @@ import { ProductsPage } from '../pages/POS/ProductsPage';
 import { OrderSessionPage } from '../pages/POS/OrderSessionPage';
 import { PaymentPage } from '../pages/POS/PaymentPage';
 import { HistoryPage } from '../pages/POS/HistoryPage';
+import { TransactionDetailPage } from '../pages/POS/TransactionDetailPage';
 import { useEffect } from 'react';
 import { useRefreshProfile } from '../hooks';
 import { APP_PERMISSIONS } from '../types';
@@ -90,7 +91,7 @@ export function AppRoutes() {
         path="/pos/history/:transactionId"
         element={
           <ProtectedRoute>
-            <HistoryPage />
+            <TransactionDetailPage />
           </ProtectedRoute>
         }
       />
