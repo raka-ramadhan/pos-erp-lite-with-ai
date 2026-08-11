@@ -3,7 +3,6 @@ import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
-  UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
 import { TransactionItem } from './transaction-item.entity';
@@ -106,9 +105,6 @@ export class Transaction {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
-
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
 
   @OneToMany(() => TransactionItem, (item) => item.transaction, { cascade: true })
   items!: TransactionItem[];
