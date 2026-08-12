@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboardOverview, type DateRange } from '../api/dashboard.api';
 
+export type { DateRange };
+
 export interface UseDashboardOptions {
   range?: DateRange;
 }

@@ -9,5 +9,4 @@ export * from './user.api';
 export { default as permissionApi } from './permission.api';
 export * from './permission.api';
 
-export { default as dashboardApi } from './dashboard.api';
 export * from './dashboard.api';

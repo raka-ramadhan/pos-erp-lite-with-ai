@@ -19,7 +19,7 @@ const DATE_RANGES: { key: DateRange; label: string }[] = [
 export function DashboardHome() {
   useDocumentTitle('Dashboard');
   const [dateRange, setDateRange] = useState<DateRange>('today');
-  const { data, isLoading, isError, refetch, isFetching } = useDashboard({ range: dateRange });
+  const { data, isLoading, refetch, isFetching } = useDashboard({ range: dateRange });
 
   return (
     <div className="space-y-6">

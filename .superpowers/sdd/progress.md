@@ -1,39 +1,32 @@
-# POS Transaction History - Progress Ledger
+# Dashboard Overview - Progress Ledger
 
 ## Plan
-`docs/superpowers/plans/2026-08-11-pos-transaction-history-implementation.md`
+`docs/superpowers/plans/2026-08-12-dashboard-overview.md`
 
 ## Tasks
 | # | Task | Status | Commits |
 |---|------|--------|---------|
-| 1 | Database Migration - Create Transaction Tables | pending | - |
-| 2 | Backend - Transaction Entities | pending | - |
-| 3 | Backend - Transaction DTOs | pending | - |
-| 4 | Backend - Transaction Service | pending | - |
-| 5 | Backend - Controller & Module | pending | - |
-| 6 | Backend - Integrate Snapshot Trigger | pending | - |
-| 7 | Frontend - API Client | pending | - |
-| 8 | Frontend - Transactions Hook | pending | - |
-| 9 | Frontend - History Page | pending | - |
-| 10 | Frontend - Transaction Detail Page | pending | - |
-| 11 | Frontend - Navigation & Integration | pending | - |
-| 12 | Testing & Verification | pending | - |
+| 1 | Backend - Dashboard Module & Service | complete | 8258e24 |
+| 2 | Frontend - API Client & Types | complete | acf1c9c |
+| 3 | Frontend - Dashboard Hook | complete | 4a6a735 |
+| 4 | Frontend - KPI Card Component | complete | d385463 |
+| 5 | Frontend - Sales Chart Component | complete | 1670a61 |
+| 6 | Frontend - Order Type & Payment Cards | complete | 4a89dba |
+| 7 | Frontend - Active Orders & Recent Transactions | complete | 236e50a |
+| 8 | Frontend - Dashboard Page Assembly | complete | 8094a77 |
+| 9 | Frontend - Install Recharts & Test | pending | - |
+| 10 | Integration Test | pending | - |
 
 ## Completed
-
-| 1 | Database Migration | complete | 1bcaf69 |
-| 2 | Backend Transaction Entities | complete | 2449532 |
-| 3 | Backend Transaction DTOs | complete | 4217e11 |
-| 4 | Backend Transaction Service | complete | 296ddde |
-| 5 | Backend Controller & Module | complete | 4f82df2 |
-| 6 | Backend Snapshot Integration | complete | 2009d6e |
-| 7 | Frontend API Client | complete | cff6fe1 |
-| 8 | Frontend Transactions Hook | complete | 7e1a33f |
-| 9 | Frontend History Page | complete | db152ca |
-| 10 | Frontend Transaction Detail | complete | 2342cee |
-| 11 | Frontend Navigation Integration | complete | - |
-| 12 | Testing & Verification | partial | - |
+| 1 | Backend Dashboard Module | complete | 8258e24 |
+| 2 | Frontend API Client | complete | acf1c9c |
+| 3 | Frontend Dashboard Hook | complete | 4a6a735 |
+| 4 | Frontend KPI Card | complete | d385463 |
+| 5 | Frontend Sales Chart | complete | 1670a61 |
+| 6 | Frontend Order & Payment Cards | complete | 4a89dba |
+| 7 | Frontend Active Orders Cards | complete | 236e50a |
+| 8 | Frontend Dashboard Assembly | complete | 8094a77 |
 
 ## Summary
-11/12 tasks completed. Backend fully implemented. Frontend structure complete.
-Pre-existing TypeScript errors in other POS files need separate fixing.
+8/10 tasks completed.
+

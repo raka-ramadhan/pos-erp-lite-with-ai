@@ -69,8 +69,8 @@ export function SalesChart({ data, isLoading }: SalesChartProps) {
                 fontSize={12}
               />
               <Tooltip
-                formatter={(value: number) => [formatCurrency(value), 'Sales']}
-                labelFormatter={formatDate}
+                formatter={(value) => [formatCurrency(Number(value)), 'Sales']}
+                labelFormatter={(label) => formatDate(String(label))}
                 contentStyle={{
                   backgroundColor: '#fff',
                   border: '1px solid #e2e8f0',
