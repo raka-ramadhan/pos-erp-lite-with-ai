@@ -14,7 +14,7 @@ import { RequirePermission } from '../../common/decorators/permission.decorator'
 
 @Controller('transactions')
 @UseGuards(JwtAuthGuard, PermissionGuard)
-@RequirePermission('use_cashier')
+@RequirePermission('view_transactions')
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 

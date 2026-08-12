@@ -10,3 +10,4 @@ export { default as permissionApi } from './permission.api';
 export * from './permission.api';
 
 export * from './dashboard.api';
+export * from './transactions.api';
