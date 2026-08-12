@@ -115,5 +115,16 @@ docker-compose.override.yml
 # =============================================
 # Claude Code & MCP
 # =============================================
-.mcp.json
-CLAUDE.md
+# MCP config files (anywhere in project)
+**/.mcp.json
+
+# CLAUDE.md documentation files (anywhere in project)
+**/CLAUDE.md
+
+# Claude Code settings
+.claude/
+.claude/**/*
+
+# Superpowers planning & specs
+.superpowers/
+docs/superpowers/
