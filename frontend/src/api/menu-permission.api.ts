@@ -11,6 +11,7 @@ export interface MenuPermissionResponse {
   menuId: string;
   menuName: string;
   menuCode: string;
+  type: string;
   permissions: PermissionSimple[];
 }
 

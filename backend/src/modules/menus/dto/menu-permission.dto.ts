@@ -16,6 +16,7 @@ export class MenuPermissionResponse {
   menuId!: string;
   menuName!: string;
   menuCode!: string;
+  type!: string;
   permissions!: {
     id: string;
     code: string;

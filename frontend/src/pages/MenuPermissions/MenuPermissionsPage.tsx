@@ -51,12 +51,15 @@ export function MenuPermissionsPage() {
     };
 
     menusData.forEach((menu) => {
-      // Determine type from menu code patterns
-      const code = menu.menuCode.toLowerCase();
-      if (['dashboard', 'rbac', 'master-data', 'master_data'].includes(code)) {
+      // Determine type from menu's type field
+      if (menu.type === 'GROUP') {
         groups.GROUP.push(menu);
-      } else {
+      } else if (menu.type === 'MENU') {
         groups.MENU.push(menu);
+      } else if (menu.type === 'SUBMENU') {
+        groups.SUBMENU.push(menu);
+      } else if (menu.type === 'LINK') {
+        groups.LINK.push(menu);
       }
     });
 

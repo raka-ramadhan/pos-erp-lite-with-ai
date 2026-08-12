@@ -144,6 +144,7 @@ export class MenusService {
       menuId: menu.id,
       menuName: menu.name,
       menuCode: menu.code,
+      type: menu.type,
       permissions: menu.permissions.map((p) => ({
         id: p.id,
         code: p.code,
@@ -205,6 +206,7 @@ export class MenusService {
       menuId: menu.id,
       menuName: menu.name,
       menuCode: menu.code,
+      type: menu.type,
       permissions: menu.permissions.map((p) => ({
         id: p.id,
         code: p.code,
@@ -240,6 +242,7 @@ export class MenusService {
       menuId: menu.id,
       menuName: menu.name,
       menuCode: menu.code,
+      type: menu.type,
       permissions: menu.permissions.map((p) => ({
         id: p.id,
         code: p.code,
@@ -265,6 +268,7 @@ export class MenusService {
       menuId: menu.id,
       menuName: menu.name,
       menuCode: menu.code,
+      type: menu.type,
       permissions: menu.permissions.map((p) => ({
         id: p.id,
         code: p.code,
@@ -307,6 +311,7 @@ export class MenusService {
       menuId: menu.id,
       menuName: menu.name,
       menuCode: menu.code,
+      type: menu.type,
       permissions: menu.permissions.map((p) => ({
         id: p.id,
         code: p.code,
