@@ -116,7 +116,11 @@ const transactionsApi = {
     const response = await apiClient.get<ApiResponse<PaginatedTransactions>>('/transactions', {
       params,
     });
-    return response.data.data;
+    // Backend returns { success, data: [...], meta: {...} }
+    return {
+      data: response.data.data as TransactionSummary[],
+      meta: response.data.meta as PaginatedTransactions['meta'],
+    };
   },
 
   /**
