@@ -389,11 +389,17 @@ export class TransactionsService {
 
     // Date range filter
     if (query.dateFrom) {
-      qb.andWhere('transaction.completedAt >= :dateFrom', { dateFrom: query.dateFrom });
+      // Add start of day time
+      const dateFromWithTime = new Date(query.dateFrom);
+      dateFromWithTime.setHours(0, 0, 0, 0);
+      qb.andWhere('transaction.completedAt >= :dateFrom', { dateFrom: dateFromWithTime.toISOString() });
     }
 
     if (query.dateTo) {
-      qb.andWhere('transaction.completedAt <= :dateTo', { dateTo: query.dateTo });
+      // Add end of day time
+      const dateToWithTime = new Date(query.dateTo);
+      dateToWithTime.setHours(23, 59, 59, 999);
+      qb.andWhere('transaction.completedAt <= :dateTo', { dateTo: dateToWithTime.toISOString() });
     }
 
     // Order type filter
