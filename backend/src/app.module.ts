@@ -22,6 +22,7 @@ import { DiningTablesModule } from './modules/dining-tables/dining-tables.module
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { HttpExceptionFilter } from './common/filters';
 import { TransformInterceptor } from './common/interceptors';
 
@@ -46,6 +47,7 @@ import { TransformInterceptor } from './common/interceptors';
     OrdersModule,
     PaymentsModule,
     TransactionsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [
