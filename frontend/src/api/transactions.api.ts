@@ -136,10 +136,18 @@ export const transactionsApi = {
     if (params?.dateTo) searchParams.set('dateTo', params.dateTo);
     if (params?.orderType) searchParams.set('orderType', params.orderType);
 
-    const response = await apiClient.get<ApiResponse<PaginatedTransactions>>(
-      `/transactions?${searchParams}`
-    );
-    return response.data.data as PaginatedTransactions;
+    const response = await apiClient.get<{
+      success: boolean;
+      data: TransactionSummary[];
+      meta: PaginatedTransactions['meta'];
+      timestamp: string;
+    }>(`/transactions?${searchParams}`);
+
+    // Backend interceptor flattens paginated responses: data is the array, meta is at top level
+    return {
+      data: response.data.data,
+      meta: response.data.meta,
+    };
   },
 
   /**
