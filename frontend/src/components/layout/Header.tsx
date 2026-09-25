@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { Menu, Bell, ChevronDown, LogOut, User, Settings } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLogout } from '../../hooks';
+import { setLoggingOut } from '../../api/client';
 import type { RootState } from '../../store';
 
 interface HeaderProps {
@@ -27,12 +28,17 @@ export function Header({ title, onMenuClick }: HeaderProps) {
   };
 
   const handleLogout = () => {
-    logoutMutation.mutate(undefined, {
-      onSuccess: () => {
-        navigate('/login');
-      },
-    });
+    // Close dropdown first
     setIsProfileOpen(false);
+
+    // Set flag to prevent 401 interceptor from triggering
+    setLoggingOut(true);
+
+    // Navigate to login page
+    navigate('/login', { replace: true });
+
+    // Then clear auth state (runs in background)
+    logoutMutation.mutate();
   };
 
   // Close dropdown on click outside

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../api';
+import { apiClient, setLoggingOut } from '../api';
 import type { LoginRequest, RegisterRequest, AuthResponse, ApiResponse, UserProfile } from '../types';
 import { setAuth, logout, setAuthError, setUser } from '../store/slices/authSlice';
 import { store } from '../store';
@@ -135,8 +135,20 @@ export function useLogout() {
       return Promise.resolve();
     },
     onSuccess: () => {
-      store.dispatch(logout());
+      // Set flag to prevent 401 interceptor from dispatching logout again
+      setLoggingOut(true);
+
+      // Cancel ALL pending queries FIRST to prevent race conditions
+      queryClient.cancelQueries();
+
+      // Clear all cached queries
       queryClient.clear();
+
+      // Finally clear auth state
+      store.dispatch(logout());
+
+      // Reset flag after a short delay
+      setTimeout(() => setLoggingOut(false), 100);
     },
   });
 }

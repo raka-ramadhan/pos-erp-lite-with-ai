@@ -5,6 +5,13 @@ import { logout, setAuthError } from '../store/slices/authSlice';
 // API Base URL
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+// Flag to prevent 401 interceptor from firing during logout
+let isLoggingOut = false;
+
+export const setLoggingOut = (value: boolean) => {
+  isLoggingOut = value;
+};
+
 // Create Axios instance
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -46,6 +53,12 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
+    // Skip 401 handling if we're in the process of logging out
+    // This prevents "Access Denied" flash during logout
+    if (isLoggingOut) {
+      return Promise.reject(error);
+    }
+
     if (error.response) {
       const { status, data } = error.response as AxiosResponse;
 

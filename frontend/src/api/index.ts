@@ -1,4 +1,4 @@
-export { default as apiClient } from './client';
+export { default as apiClient, setLoggingOut } from './client';
 
 export { default as categoryApi } from './category.api';
 export * from './category.api';
